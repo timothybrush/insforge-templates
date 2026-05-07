@@ -22,7 +22,16 @@ function requireEnv(name: string): string {
 // every new pooled connection so BA's `CREATE TABLE`, `INSERT`, `SELECT`
 // (and the `better-auth migrate` CLI when it imports this file) all resolve
 // to `better_auth.*`. `public` stays in the path for `gen_random_uuid()` etc.
-const pool = new Pool({ connectionString: requireEnv('DATABASE_URL') });
+// pg-connection-string v2 treats `sslmode=require` as `verify-full`, which
+// rejects InsForge cloud's self-signed Postgres cert with
+// `DEPTH_ZERO_SELF_SIGNED_CERT`. When the URL has any sslmode= we keep TLS on
+// but skip CA verification — same posture as `psql sslmode=require`. Local
+// stacks (no sslmode in the URL) get a plain non-TLS connection.
+const databaseUrl = requireEnv('DATABASE_URL');
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: databaseUrl.includes('sslmode=') ? { rejectUnauthorized: false } : undefined,
+});
 pool.on('connect', (client) => {
   // Best-effort: we don't fail the connection on this — if the schema
   // doesn't exist yet, the next migrate run creates it via 01-schema.sql.
