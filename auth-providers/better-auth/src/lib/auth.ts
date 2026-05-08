@@ -34,13 +34,16 @@ function requireEnv(name: string): string {
 // (verified empirically against InsForge cloud Postgres) the parsed
 // `sslmode=require` wins and our override is silently dropped: 0/5
 // connections succeed with `sslmode=` in the URL, 5/5 succeed when it is
-// stripped. So we strip it before handing the URL to pg, while keeping
-// `hasSslmode` to know whether to apply the workaround at all. Local
-// stacks (no sslmode in the URL) get a plain non-TLS connection.
+// stripped. So we strip it via the URL API (which handles param ordering
+// correctly — a regex strip would leave a stray `&` if sslmode was the
+// first of several params) and apply our explicit ssl override below.
+// Local stacks (no sslmode in the URL) get a plain non-TLS connection.
 const databaseUrl = requireEnv('DATABASE_URL');
-const hasSslmode = /[?&]sslmode=/.test(databaseUrl);
+const parsedUrl = new URL(databaseUrl);
+const hasSslmode = parsedUrl.searchParams.has('sslmode');
+parsedUrl.searchParams.delete('sslmode');
 const pool = new Pool({
-  connectionString: databaseUrl.replace(/[?&]sslmode=[^&]*/, ''),
+  connectionString: parsedUrl.toString(),
   ssl: hasSslmode ? { rejectUnauthorized: false } : undefined,
   options: '-c search_path=better_auth,public',
 });
