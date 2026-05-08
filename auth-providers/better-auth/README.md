@@ -25,7 +25,7 @@ The CLI reads `manifest.json`, copies the files listed under `files`, deep-merge
 - `src/app/api/insforge-token/route.ts` — bridge route that signs HS256 with `INSFORGE_JWT_SECRET`
 - `src/app/sign-up/page.tsx`, `src/app/sign-in/page.tsx` — working email + password UI
 - `sql/01-schema.sql` — bootstrap that runs before `auth:migrate`. Creates the `better_auth` schema via direct Postgres connection (the migrations API can't be used here — BA's CLI needs the schema to exist before either path is reachable).
-- `migrations/0001_better-auth-app.sql` — first tracked migration. `pgcrypto` + `public.requesting_user_id()` helper. Applied via `insforge db migrations up` so it lives alongside any migrations you add later with `insforge db migrations new <name>`.
+- `migrations/20000101000000_better-auth-app.sql` — first tracked migration. `pgcrypto` + `public.requesting_user_id()` helper. Applied via `insforge db migrations up` so it lives alongside any migrations you add later with `insforge db migrations new <name>`. The synthetic `2000-01-01` timestamp guarantees it sorts before anything you'll create.
 - `scripts/setup-db.mjs` — runs the SQL files using `pg` (no `psql` dependency); accepts a filename-prefix arg so the setup flow can split pre/post-migrate phases
 
 ## Why an overlay, not a template

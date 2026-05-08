@@ -13,7 +13,7 @@
     "src/app/sign-in/page.tsx",
     "src/app/sign-up/page.tsx",
     "sql/01-schema.sql",
-    "migrations/0001_better-auth-app.sql",
+    "migrations/20000101000000_better-auth-app.sql",
     "scripts/setup-db.mjs"
   ],
   "packageJsonPatch": {
