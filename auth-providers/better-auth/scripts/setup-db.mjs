@@ -33,12 +33,20 @@ if (files.length === 0) {
 }
 
 // pg-connection-string v2 treats `sslmode=require` as `verify-full`, which
-// rejects InsForge cloud's self-signed Postgres cert. Same posture as the
-// pool in src/lib/auth.ts — TLS on, CA verification off when sslmode is in
-// the URL. Local stacks (no sslmode) get a plain non-TLS connection.
+// rejects InsForge cloud's self-signed Postgres cert with
+// `DEPTH_ZERO_SELF_SIGNED_CERT`. Strip `sslmode=` from the URL via the
+// URL API (handles param ordering — a regex strip would leave a stray `&`
+// if sslmode is first of several params) so the explicit `ssl: {
+// rejectUnauthorized: false }` option wins. Verified empirically: 0/5
+// connections succeed with sslmode= in the URL, 5/5 succeed once it is
+// removed. Local stacks (no sslmode in the URL) get a plain non-TLS
+// connection.
+const parsedUrl = new URL(url);
+const hasSslmode = parsedUrl.searchParams.has('sslmode');
+parsedUrl.searchParams.delete('sslmode');
 const client = new pg.Client({
-  connectionString: url,
-  ssl: url.includes('sslmode=') ? { rejectUnauthorized: false } : undefined,
+  connectionString: parsedUrl.toString(),
+  ssl: hasSslmode ? { rejectUnauthorized: false } : undefined,
 });
 await client.connect();
 try {
