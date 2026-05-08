@@ -32,7 +32,14 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-const client = new pg.Client({ connectionString: url });
+// pg-connection-string v2 treats `sslmode=require` as `verify-full`, which
+// rejects InsForge cloud's self-signed Postgres cert. Same posture as the
+// pool in src/lib/auth.ts — TLS on, CA verification off when sslmode is in
+// the URL. Local stacks (no sslmode) get a plain non-TLS connection.
+const client = new pg.Client({
+  connectionString: url,
+  ssl: url.includes('sslmode=') ? { rejectUnauthorized: false } : undefined,
+});
 await client.connect();
 try {
   for (const f of files) {
