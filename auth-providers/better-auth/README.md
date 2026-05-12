@@ -38,9 +38,10 @@ The CLI's overlay logic isn't required. You can clone this directory and copy th
 
 ```bash
 git clone https://github.com/InsForge/insforge-templates.git
-cp -r insforge-templates/auth-providers/better-auth/{lib,app,sql,scripts} your-project/
+cp -r insforge-templates/auth-providers/better-auth/{src,migrations} your-project/
 # Then edit your package.json to add the deps from manifest.json's packageJsonPatch
-# and write .env.local with the values from manifest.json's envExampleAppend.
+# (and the auth:migrate + setup scripts), and write .env.local with the values
+# from manifest.json's envExampleAppend.
 ```
 
 See the [InsForge Better Auth integration guide](https://staging.insforge.dev/integrations/better-auth) for the full walk-through and the [skill reference](https://github.com/InsForge/insforge-skills/blob/main/skills/insforge-integrations/references/better-auth.md) for plugins, custom claims, and common-mistake guidance.
