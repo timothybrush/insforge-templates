@@ -1,0 +1,13 @@
+[
+  {
+    "slug": "a",
+    "description": "d",
+    "category": "ai",
+    "framework": "nextjs",
+    "features": [],
+    "tags": [],
+    "cover": "x.png",
+    "author": "X",
+    "added_at": "2026-01-01"
+  }
+]
