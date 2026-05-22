@@ -12,7 +12,7 @@ Templates listed on https://insforge.dev/templates live in this repo. Adding one
    - `LICENSE` (any open-source license; file required but contents not enforced)
    - `.env.example` (no real secrets — CI checks for common shapes)
    - Optional: `migrations/*.sql` (parse-checked by CI), `functions/<name>/index.ts` (`tsc --noEmit` checked)
-4. Add a cover image at `assets/covers/<your-slug>.png` — 1280×800, ≤ 200 KB.
+4. Add a cover image at `assets/covers/<your-slug>.png` — 1280×800 recommended, ≤ 1 MB.
 5. Add an entry to `registry.json`:
 
    ```json
@@ -41,7 +41,7 @@ Templates listed on https://insforge.dev/templates live in this repo. Adding one
 - Edge function `index.ts` passes `tsc --noEmit`
 - `LICENSE`, `README.md`, `.env.example`, and cover image all exist
 - `.env.example` does not contain real-secret patterns
-- Cover image ≤ 200 KB (PNG/SVG); 1280 × 800 recommended
+- Cover image ≤ 1 MB (PNG/SVG); 1280 × 800 recommended
 
 ## How updates ship
 
