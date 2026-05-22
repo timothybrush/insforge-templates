@@ -41,6 +41,9 @@ jobs:
   edge-function-tsc:
     name: tsc --noEmit on edge functions
     runs-on: ubuntu-latest
+    # Don't waste a runner if registry.json itself is malformed — the slug
+    # read below would throw a raw Node trace instead of a clean diagnostic.
+    needs: [validate-registry]
     steps:
       - uses: actions/checkout@v4
 
@@ -56,8 +59,13 @@ jobs:
           echo "slugs=$SLUGS" >> "$GITHUB_OUTPUT"
 
       - name: tsc --noEmit any edge functions
+        # Pass the slug list via env so the value never gets interpolated
+        # directly into a shell command. The slug regex blocks injection today,
+        # but this pattern is GitHub-flagged static-scan-clean (zizmor etc.).
+        env:
+          SLUGS: ${{ steps.slugs.outputs.slugs }}
         run: |
-          for slug in ${{ steps.slugs.outputs.slugs }}; do
+          for slug in $SLUGS; do
             if [ -d "$slug/functions" ]; then
               for fn in "$slug"/functions/*/; do
                 if [ -f "${fn}index.ts" ]; then
@@ -71,6 +79,7 @@ jobs:
   cover-size:
     name: Cover image size budget
     runs-on: ubuntu-latest
+    needs: [validate-registry]
     steps:
       - uses: actions/checkout@v4
       - name: Enforce <= 1 MB
