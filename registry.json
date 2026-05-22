@@ -1,0 +1,15 @@
+[
+  {
+    "slug": "e-commerce",
+    "name": "Storefront Starter",
+    "description": "Product catalog, cart, checkout via Stripe, order history. Next.js + InsForge auth + InsForge Storage.",
+    "category": "e-commerce",
+    "framework": "nextjs",
+    "features": ["auth", "storage", "payments"],
+    "tags": ["e-commerce", "stripe", "storefront"],
+    "cover": "assets/covers/e-commerce.png",
+    "demo_url": "https://demoecommerce.insforge.site/",
+    "author": "InsForge",
+    "added_at": "2026-05-20"
+  }
+]

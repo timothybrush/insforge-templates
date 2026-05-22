@@ -103,6 +103,17 @@ For full setup details, go directly to the template README you want to use:
 - [`nextjs/README.md`](./nextjs/README.md)
 - [`react/README.md`](./react/README.md)
 
+## Marketplace
+
+Templates listed in [`registry.json`](./registry.json) are surfaced at **https://insforge.dev/templates**.
+Use one with the InsForge CLI:
+
+```bash
+npx @insforge/cli create --marketplace <slug>
+```
+
+To contribute a new template, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Provide Feedback
 
 - [Open an issue](../../issues/new) if you believe you've encountered a bug that you want to flag for the team.

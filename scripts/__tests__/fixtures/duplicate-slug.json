@@ -1,0 +1,28 @@
+[
+  {
+    "slug": "a",
+    "name": "A",
+    "description": "d",
+    "category": "ai",
+    "framework": "nextjs",
+    "features": [],
+    "tags": [],
+    "cover": "x.png",
+    "demo_url": null,
+    "author": "X",
+    "added_at": "2026-01-01"
+  },
+  {
+    "slug": "a",
+    "name": "B",
+    "description": "d",
+    "category": "ai",
+    "framework": "nextjs",
+    "features": [],
+    "tags": [],
+    "cover": "x.png",
+    "demo_url": null,
+    "author": "X",
+    "added_at": "2026-01-01"
+  }
+]

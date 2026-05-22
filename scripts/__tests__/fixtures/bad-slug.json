@@ -1,0 +1,15 @@
+[
+  {
+    "slug": "Has Spaces!",
+    "name": "A",
+    "description": "d",
+    "category": "ai",
+    "framework": "nextjs",
+    "features": [],
+    "tags": [],
+    "cover": "x.png",
+    "demo_url": null,
+    "author": "X",
+    "added_at": "2026-01-01"
+  }
+]
