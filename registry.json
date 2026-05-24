@@ -37,5 +37,18 @@
     "demo_url": "https://democrm.insforge.site",
     "author": "InsForge",
     "added_at": "2026-05-24"
+  },
+  {
+    "slug": "booking",
+    "name": "Booking Marketplace",
+    "description": "Two-sided booking marketplace where customers discover providers and request appointments. Includes availability-aware scheduling, per-booking messaging, and post-completion reviews. Next.js + InsForge auth + RLS.",
+    "category": "marketplace",
+    "framework": "nextjs",
+    "features": ["auth", "storage"],
+    "tags": ["booking", "appointments", "marketplace", "scheduling", "calendly"],
+    "cover": "assets/covers/booking.png",
+    "demo_url": "https://booking.insforge.site",
+    "author": "InsForge",
+    "added_at": "2026-05-23"
   }
 ]
