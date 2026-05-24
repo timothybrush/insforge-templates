@@ -17,14 +17,23 @@ export function SignUpForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const result = await signUp(email.trim(), password);
-    if (result.success) {
-      toast.success('Account created.');
-      window.location.href = '/dashboard';
-      return;
+    try {
+      const result = await signUp(email.trim(), password);
+      if (result.success) {
+        if (result.requireVerification) {
+          toast.success('Check your email to verify your account, then sign in.');
+        } else {
+          window.location.href = '/dashboard';
+          return;
+        }
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      toast.error('Sign up failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    toast.error(result.error);
-    setLoading(false);
   }
 
   return (

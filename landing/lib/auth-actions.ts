@@ -11,6 +11,10 @@ import { getInsforgeServerClient } from '@/lib/insforge';
 
 export type AuthResult = { success: true } | { success: false; error: string };
 
+export type SignUpResult =
+  | { success: true; requireVerification: boolean }
+  | { success: false; error: string };
+
 export async function signIn(email: string, password: string): Promise<AuthResult> {
   const insforge = getInsforgeServerClient();
   const { data, error } = await insforge.auth.signInWithPassword({ email, password });
@@ -26,17 +30,22 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   return { success: true };
 }
 
-export async function signUp(email: string, password: string): Promise<AuthResult> {
+export async function signUp(email: string, password: string): Promise<SignUpResult> {
   const insforge = getInsforgeServerClient();
   const { data, error } = await insforge.auth.signUp({ email, password });
 
   if (error) {
     return { success: false, error: error.message ?? 'Sign up failed.' };
   }
-  if (data?.accessToken && data?.refreshToken) {
-    await setAuthCookies(data.accessToken, data.refreshToken);
+
+  // If the project has email verification enabled, signUp succeeds without
+  // returning a session — the user must verify before they can sign in.
+  if (!data?.accessToken || !data?.refreshToken) {
+    return { success: true, requireVerification: true };
   }
-  return { success: true };
+
+  await setAuthCookies(data.accessToken, data.refreshToken);
+  return { success: true, requireVerification: false };
 }
 
 export async function getOAuthUrl(
@@ -70,12 +79,10 @@ export async function exchangeAuthCode(code: string): Promise<AuthResult> {
   const codeVerifier = await consumePkceVerifier();
   const { data, error } = await insforge.auth.exchangeOAuthCode(code, codeVerifier ?? undefined);
 
-  if (error || !data?.accessToken) {
+  if (error || !data?.accessToken || !data?.refreshToken) {
     return { success: false, error: error?.message ?? 'Code exchange failed.' };
   }
-  if (data.refreshToken) {
-    await setAuthCookies(data.accessToken, data.refreshToken);
-  }
+  await setAuthCookies(data.accessToken, data.refreshToken);
   return { success: true };
 }
 

@@ -17,13 +17,18 @@ export function OAuthButton({
 
   async function handle() {
     setLoading(true);
-    const result = await getOAuthUrl(provider);
-    if ('error' in result) {
-      toast.error(result.error);
+    try {
+      const result = await getOAuthUrl(provider);
+      if ('error' in result) {
+        toast.error(result.error);
+        setLoading(false);
+        return;
+      }
+      window.location.href = result.url;
+    } catch {
+      toast.error('Could not start sign in. Please try again.');
       setLoading(false);
-      return;
     }
-    window.location.href = result.url;
   }
 
   return (

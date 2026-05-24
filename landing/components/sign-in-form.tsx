@@ -17,13 +17,18 @@ export function SignInForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const result = await signIn(email.trim(), password);
-    if (result.success) {
-      window.location.href = '/dashboard';
-      return;
+    try {
+      const result = await signIn(email.trim(), password);
+      if (result.success) {
+        window.location.href = '/dashboard';
+        return;
+      }
+      toast.error(result.error);
+    } catch {
+      toast.error('Sign in failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    toast.error(result.error);
-    setLoading(false);
   }
 
   return (

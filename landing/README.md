@@ -27,7 +27,7 @@ A production-ready SaaS marketing site with waitlist signup, pricing, FAQ, dark 
 3. **Apply the database migration:**
 
    ```bash
-   npx @insforge/cli migrations apply migrations/db_init.sql
+   npx @insforge/cli db import migrations/db_init.sql
    ```
 
 4. **Add redirect URLs in the InsForge dashboard** — under Auth → Settings, add:
@@ -74,4 +74,4 @@ The fastest path is Vercel:
 
 ## License
 
-MIT
+Apache-2.0
