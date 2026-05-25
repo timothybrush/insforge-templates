@@ -1,13 +1,8 @@
 import { notFound } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { createInsforgeServerClient } from '@/lib/insforge';
 import { getAccessToken } from '@/lib/auth-cookies';
 import { ShareDialog } from '@/components/share/ShareDialog';
-
-const PageEditor = dynamic(
-  () => import('@/components/editor/PageEditor').then((m) => m.PageEditor),
-  { ssr: false },
-);
+import { PageEditor } from '@/components/editor/PageEditorClient';
 
 async function authedClient() {
   const accessToken = await getAccessToken();

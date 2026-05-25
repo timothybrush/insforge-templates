@@ -1,11 +1,6 @@
 import { notFound } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { createInsforgeServerClient } from '@/lib/insforge';
-
-const PublicPageView = dynamic(
-  () => import('@/components/editor/PublicPageView').then((m) => m.PublicPageView),
-  { ssr: false },
-);
+import { PublicPageView } from '@/components/editor/PublicPageViewClient';
 
 export default async function SharedPage({
   params,
