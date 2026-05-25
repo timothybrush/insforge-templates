@@ -107,8 +107,10 @@ $$;
 
 alter table public.workspaces enable row level security;
 
+-- Note: includes `owner_id = auth.uid()` so that PostgREST's INSERT-then-RETURNING
+-- can see the newly-created workspace before the matching workspace_members row exists.
 create policy workspaces_select on public.workspaces
-  for select using (public.is_workspace_member(id, auth.uid()));
+  for select using (owner_id = auth.uid() or public.is_workspace_member(id, auth.uid()));
 
 create policy workspaces_insert on public.workspaces
   for insert with check (auth.uid() is not null and owner_id = auth.uid());
