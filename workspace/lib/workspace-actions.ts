@@ -165,3 +165,54 @@ export async function acceptInvite(token: string): Promise<string> {
   if (error) throw new Error(error.message ?? 'invite invalid');
   return data as unknown as string;
 }
+
+export async function listWorkspaceMembers(workspaceId: string) {
+  const client = await authedClient();
+  const { data, error } = await client.database
+    .from('workspace_members')
+    .select('user_id, role, created_at')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function listOpenInvites(workspaceId: string) {
+  const client = await authedClient();
+  const { data, error } = await client.database
+    .from('workspace_invites')
+    .select('id, token, role, created_at, expires_at, used_at')
+    .eq('workspace_id', workspaceId)
+    .is('used_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function revokeInvite(inviteId: string) {
+  const client = await authedClient();
+  const { error } = await client.database.from('workspace_invites').delete().eq('id', inviteId);
+  if (error) throw new Error(error.message);
+}
+
+export async function removeMember(workspaceId: string, userId: string) {
+  const client = await authedClient();
+  const { error } = await client.database
+    .from('workspace_members')
+    .delete()
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function leaveWorkspace(workspaceId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('not authenticated');
+  await removeMember(workspaceId, user.id);
+}
+
+export async function deleteWorkspace(workspaceId: string) {
+  const client = await authedClient();
+  const { error } = await client.database.from('workspaces').delete().eq('id', workspaceId);
+  if (error) throw new Error(error.message);
+}
