@@ -1,0 +1,47 @@
+import { notFound } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { createInsforgeServerClient } from '@/lib/insforge';
+import { getAccessToken } from '@/lib/auth-cookies';
+
+const PageEditor = dynamic(
+  () => import('@/components/editor/PageEditor').then((m) => m.PageEditor),
+  { ssr: false },
+);
+
+// ShareDialog comes in Task 5.1. Placeholder for now so the page header has its slot reserved.
+function ShareDialogPlaceholder() {
+  return null;
+}
+
+async function authedClient() {
+  const accessToken = await getAccessToken();
+  return createInsforgeServerClient({ accessToken: accessToken ?? undefined });
+}
+
+export default async function PageRoute({
+  params,
+}: {
+  params: Promise<{ workspaceId: string; pageId: string }>;
+}) {
+  const { workspaceId, pageId } = await params;
+  const client = await authedClient();
+  const { data: page } = await client.database
+    .from('pages')
+    .select('id, title, icon, content, updated_at')
+    .eq('id', pageId)
+    .eq('workspace_id', workspaceId)
+    .single();
+
+  if (!page) notFound();
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-end gap-2 border-b px-6 py-2">
+        <ShareDialogPlaceholder />
+      </div>
+      <div className="flex-1 overflow-auto">
+        <PageEditor workspaceId={workspaceId} page={page as any} />
+      </div>
+    </div>
+  );
+}
