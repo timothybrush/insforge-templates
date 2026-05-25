@@ -47,10 +47,14 @@ function SignInPage() {
     const { data, error } = await insforge.auth.signInWithOAuth({
       provider,
       redirectTo: `${window.location.origin}/auth/callback`,
+      skipBrowserRedirect: true,
     })
     if (error || !data?.url) {
       toast.error(error?.message ?? `${provider} sign-in is not configured`)
       return
+    }
+    if (data.codeVerifier) {
+      sessionStorage.setItem('insforge.pkce_verifier', data.codeVerifier)
     }
     window.location.href = data.url
   }
