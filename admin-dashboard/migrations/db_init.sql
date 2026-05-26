@@ -291,11 +291,14 @@ create policy "workspaces_insert_self_as_owner"
   to authenticated
   with check (owner_id = auth.uid());
 
+-- WITH CHECK pins owner_id to the caller so the owner cannot transfer ownership
+-- by updating workspaces alone — otherwise the SELECT policy's owner_id branch
+-- would grant the new owner_id read access without a workspace_members row.
 create policy "workspaces_update_owner"
   on public.workspaces for update
   to authenticated
   using (public.is_workspace_owner(id))
-  with check (public.is_workspace_owner(id));
+  with check (public.is_workspace_owner(id) and owner_id = auth.uid());
 
 create policy "workspaces_delete_owner"
   on public.workspaces for delete
