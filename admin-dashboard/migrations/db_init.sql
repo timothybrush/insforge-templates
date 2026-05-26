@@ -63,7 +63,7 @@ create table if not exists public.tasks (
   status text not null default 'backlog',
   priority text not null default 'medium',
   label text not null default 'feature',
-  due_date timestamptz,
+  due_date date,
   assignee_id uuid,
   created_by uuid not null,
   created_at timestamptz not null default now(),
