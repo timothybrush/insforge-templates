@@ -278,10 +278,13 @@ create policy "profiles_update_self"
 -- POLICIES — workspaces
 -- ============================================================================
 
+-- Owners are included explicitly so that INSERT ... RETURNING (used by
+-- PostgREST when the client chains .select()) can see the freshly-created row
+-- before any workspace_members entry exists.
 create policy "workspaces_select_member"
   on public.workspaces for select
   to authenticated
-  using (public.is_workspace_member(id));
+  using (owner_id = auth.uid() or public.is_workspace_member(id));
 
 create policy "workspaces_insert_self_as_owner"
   on public.workspaces for insert
