@@ -1,34 +1,19 @@
-import { useState } from 'react'
 import { useActiveWorkspace } from '@/features/dashboard/use-active-workspace'
 import { useApps } from './use-apps'
-import { useToggleApp } from './use-toggle-app'
+import { useConnectApp } from './use-connect-app'
+import { useDisconnectApp } from './use-disconnect-app'
 import { AppsGrid } from './apps-grid'
 
 export function AppsPage() {
   const { workspace } = useActiveWorkspace()
   const { data: apps = [], isLoading } = useApps(workspace?.id)
-  const toggle = useToggleApp(workspace?.id)
-  const [pendingSlugs, setPendingSlugs] = useState<Set<string>>(new Set())
+  const connect = useConnectApp(workspace?.id)
+  const disconnect = useDisconnectApp(workspace?.id)
 
-  const handleToggle = (slug: string, next: boolean) => {
-    setPendingSlugs((prev) => {
-      const s = new Set(prev)
-      s.add(slug)
-      return s
-    })
-    toggle.mutate(
-      { slug, connected: next },
-      {
-        onSettled: () => {
-          setPendingSlugs((prev) => {
-            const s = new Set(prev)
-            s.delete(slug)
-            return s
-          })
-        },
-      },
-    )
-  }
+  const isConnectPending = (slug: string) =>
+    connect.isPending && connect.variables?.app.slug === slug
+  const isDisconnectPending = (slug: string) =>
+    disconnect.isPending && disconnect.variables?.app.slug === slug
 
   return (
     <div className="space-y-6">
@@ -41,8 +26,10 @@ export function AppsPage() {
       <AppsGrid
         apps={apps}
         isLoading={isLoading}
-        isPending={(slug) => pendingSlugs.has(slug)}
-        onToggle={handleToggle}
+        isConnectPending={isConnectPending}
+        isDisconnectPending={isDisconnectPending}
+        onConnect={(app) => connect.mutate({ app })}
+        onDisconnect={(app) => disconnect.mutate({ app })}
       />
     </div>
   )
