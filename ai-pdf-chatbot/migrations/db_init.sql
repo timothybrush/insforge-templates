@@ -1,10 +1,36 @@
+-- Single bootstrap file auto-applied by `npx @insforge/cli link`. Order:
+-- 1) Extensions + Better Auth schema + requesting_user_id() helper
+-- 2) App tables, indexes, triggers, the match_document_chunks RPC
+-- 3) RLS policies on app tables AND on storage.objects (per-bucket grants)
+--
+-- After this lands, `npm run auth:migrate` populates better_auth.{user,
+-- session,account,verification} via Better Auth's own Kysely migrations.
+
 create extension if not exists pgcrypto;
 create extension if not exists vector;
+
+-- Better Auth's tables live in a dedicated schema. PostgREST exposes only
+-- `public` by default, so anything under `better_auth` is hidden from the
+-- InsForge data API automatically — no REVOKE step needed.
+create schema if not exists better_auth;
+
+-- RLS policies read the BA-signed `sub` claim via auth.jwt(). The HS256
+-- bridge JWT minted by /api/insforge-token (and lib/auth-state.ts) carries
+-- `{ sub: <BA user.id>, role: "authenticated", aud: "insforge-api" }`.
+create or replace function public.requesting_user_id()
+returns text
+language sql stable
+as $$
+  select nullif(current_setting('request.jwt.claims', true)::json->>'sub', '')::text
+$$;
+
+-- user_id columns are `text` because Better Auth issues string IDs (the
+-- same `sub` claim the bridge JWT carries).
 
 -- A single uploaded PDF
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id text not null,
   file_name text not null,
   file_size integer not null,
   mime_type text not null,
@@ -14,9 +40,16 @@ create table if not exists public.documents (
     check (status in ('processing','ready','failed')),
   error text,
   page_count integer,
+  summary text,
+  suggested_questions jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Idempotent column adds for projects whose `documents` table predates
+-- the summary / suggested_questions fields.
+alter table public.documents add column if not exists summary text;
+alter table public.documents add column if not exists suggested_questions jsonb not null default '[]'::jsonb;
 
 create index if not exists documents_user_idx
   on public.documents (user_id, created_at desc);
@@ -25,7 +58,7 @@ create index if not exists documents_user_idx
 create table if not exists public.document_chunks (
   id uuid primary key default gen_random_uuid(),
   document_id uuid not null references public.documents(id) on delete cascade,
-  user_id uuid not null,
+  user_id text not null,
   chunk_index integer not null,
   content text not null,
   page_number integer,
@@ -46,13 +79,18 @@ create index if not exists document_chunks_user_idx
 -- Chat session
 create table if not exists public.chat_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id text not null,
   title text not null default 'New chat',
   document_ids uuid[] not null default '{}',
+  share_token text unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_message_at timestamptz not null default now()
 );
+
+alter table public.chat_sessions add column if not exists share_token text;
+create unique index if not exists chat_sessions_share_token_idx
+  on public.chat_sessions (share_token) where share_token is not null;
 
 create index if not exists chat_sessions_user_idx
   on public.chat_sessions (user_id, last_message_at desc);
@@ -72,6 +110,23 @@ create table if not exists public.chat_messages (
 create index if not exists chat_messages_chat_sort_idx
   on public.chat_messages (chat_id, sort_order asc);
 
+-- Flashcards generated from a document. Lives in its own table so the
+-- documents row stays cheap to fetch in lists and the cards can be
+-- regenerated/extended independently.
+create table if not exists public.document_flashcards (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references public.documents(id) on delete cascade,
+  user_id text not null,
+  question text not null,
+  answer text not null,
+  sort_order integer not null,
+  created_at timestamptz not null default now(),
+  unique (document_id, sort_order)
+);
+
+create index if not exists document_flashcards_doc_idx
+  on public.document_flashcards (document_id, sort_order asc);
+
 -- Bump chat_sessions.last_message_at on each new message
 create or replace function public.touch_chat_session()
 returns trigger language plpgsql as $$
@@ -89,11 +144,12 @@ create trigger chat_messages_touch_session
 after insert on public.chat_messages
 for each row execute function public.touch_chat_session();
 
--- RAG retrieval (RLS-aware via explicit owner argument)
+-- RAG retrieval (RLS-aware via explicit owner argument — text now, to
+-- match the user_id column type and the BA-bridged JWT sub claim).
 create or replace function public.match_document_chunks(
   query_embedding vector(1536),
   match_count integer,
-  owner uuid,
+  owner text,
   doc_filter uuid[] default null
 )
 returns table (
@@ -117,35 +173,114 @@ language sql stable as $$
   limit match_count;
 $$;
 
--- RLS
+-- RLS — policies read the BA `sub` claim through requesting_user_id().
 alter table public.documents enable row level security;
 alter table public.document_chunks enable row level security;
 alter table public.chat_sessions enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.document_flashcards enable row level security;
 
 drop policy if exists documents_owner on public.documents;
 create policy documents_owner on public.documents
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  for all
+  using (user_id = public.requesting_user_id())
+  with check (user_id = public.requesting_user_id());
 
 drop policy if exists document_chunks_owner on public.document_chunks;
 create policy document_chunks_owner on public.document_chunks
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  for all
+  using (user_id = public.requesting_user_id())
+  with check (user_id = public.requesting_user_id());
 
 drop policy if exists chat_sessions_owner on public.chat_sessions;
 create policy chat_sessions_owner on public.chat_sessions
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  for all
+  using (user_id = public.requesting_user_id())
+  with check (user_id = public.requesting_user_id());
 
 drop policy if exists chat_messages_owner on public.chat_messages;
 create policy chat_messages_owner on public.chat_messages
-  for all using (
+  for all
+  using (
     exists (
       select 1 from public.chat_sessions cs
-      where cs.id = chat_messages.chat_id and cs.user_id = auth.uid()
+      where cs.id = chat_messages.chat_id
+        and cs.user_id = public.requesting_user_id()
     )
   )
   with check (
     exists (
       select 1 from public.chat_sessions cs
-      where cs.id = chat_messages.chat_id and cs.user_id = auth.uid()
+      where cs.id = chat_messages.chat_id
+        and cs.user_id = public.requesting_user_id()
     )
   );
+
+drop policy if exists document_flashcards_owner on public.document_flashcards;
+create policy document_flashcards_owner on public.document_flashcards
+  for all
+  using (user_id = public.requesting_user_id())
+  with check (user_id = public.requesting_user_id());
+
+-- Share-link reads — SECURITY DEFINER gate so anyone with the token can
+-- read a shared chat without granting anon SELECT on chat_sessions
+-- broadly. Run as the function owner (postgres), bypasses RLS, returns
+-- only the chat + its messages when the token matches.
+create or replace function public.get_shared_chat(p_token text)
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select case
+    when cs.id is null then null
+    else json_build_object(
+      'chat', json_build_object(
+        'id', cs.id,
+        'title', cs.title,
+        'created_at', cs.created_at,
+        'last_message_at', cs.last_message_at
+      ),
+      'messages', coalesce(
+        (select json_agg(
+          json_build_object(
+            'id', cm.id,
+            'role', cm.role,
+            'content', cm.content,
+            'sort_order', cm.sort_order,
+            'citations', cm.citations,
+            'created_at', cm.created_at
+          )
+          order by cm.sort_order asc
+        )
+        from public.chat_messages cm
+        where cm.chat_id = cs.id),
+        '[]'::json
+      )
+    )
+  end
+  from public.chat_sessions cs
+  where cs.share_token = p_token
+  limit 1;
+$$;
+
+grant execute on function public.get_shared_chat(text) to anon, authenticated;
+
+-- storage.objects RLS — InsForge fresh projects only ship a project_admin
+-- policy on storage.objects, so authenticated users can't upload even into
+-- buckets they "own". Add per-bucket policies scoped to uploaded_by =
+-- requesting_user_id() (the JWT sub) so a signed-in user can manage their
+-- own PDFs in pdf-documents and nothing else.
+drop policy if exists pdf_documents_owner_insert on storage.objects;
+create policy pdf_documents_owner_insert on storage.objects
+  for insert to authenticated
+  with check (bucket = 'pdf-documents' and uploaded_by = public.requesting_user_id());
+
+drop policy if exists pdf_documents_owner_select on storage.objects;
+create policy pdf_documents_owner_select on storage.objects
+  for select to authenticated
+  using (bucket = 'pdf-documents' and uploaded_by = public.requesting_user_id());
+
+drop policy if exists pdf_documents_owner_delete on storage.objects;
+create policy pdf_documents_owner_delete on storage.objects
+  for delete to authenticated
+  using (bucket = 'pdf-documents' and uploaded_by = public.requesting_user_id());
