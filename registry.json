@@ -2,10 +2,10 @@
   {
     "slug": "e-commerce",
     "name": "Storefront Starter",
-    "description": "Launch an online store with Stripe checkout in an afternoon. Product catalog, cart, customer accounts, and an admin-side order dashboard come wired up.",
+    "description": "Launch an online store in an afternoon. Product catalog, cart, customer accounts, and an admin-side order dashboard come wired up.",
     "category": "e-commerce",
     "framework": "nextjs",
-    "features": ["Stripe Checkout", "Order Dashboard", "shadcn/ui", "Auth"],
+    "features": ["Order Dashboard", "shadcn/ui", "Auth"],
     "tags": ["e-commerce", "stripe", "storefront"],
     "cover": "assets/covers/e-commerce.png",
     "demo_url": "https://demoecommerce.insforge.site/",
