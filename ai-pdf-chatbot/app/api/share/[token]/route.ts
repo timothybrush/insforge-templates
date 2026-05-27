@@ -18,8 +18,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const client = createInsforgeServerClient();
   const { data, error } = await client.database.rpc('get_shared_chat', { p_token: token });
 
+  // Public endpoint — don't leak raw PostgREST / function error
+  // messages (could expose schema details or trigger fingerprinting).
+  // Log server-side; return a generic message to the caller.
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('share endpoint rpc error:', error);
+    return NextResponse.json({ error: 'Failed to load shared chat' }, { status: 500 });
   }
   if (!data) {
     return NextResponse.json({ error: 'Shared chat not found' }, { status: 404 });

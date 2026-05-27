@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "auth:migrate": "better-auth migrate --config ./lib/auth.ts -y",
+    "auth:migrate": "npx -y auth@latest migrate --config ./lib/auth.ts -y",
     "setup": "npm run auth:migrate && npx -y @insforge/cli storage create-bucket pdf-documents --private",
     "test": "node --import tsx --test scripts/*.test.mjs"
   },
@@ -29,7 +29,6 @@
     "unpdf": "^1.6.2"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/jsonwebtoken": "^9.0.8",
     "@types/node": "24.6.2",

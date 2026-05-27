@@ -72,8 +72,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ chatId
     .select('id, title, document_ids, share_token, created_at, last_message_at')
     .single();
 
+  // `.single()` returns no data when no row matches the id (deleted,
+  // never existed, or RLS filtered). Both the error-on-zero-rows path
+  // and the data-null path collapse to 404 to stay consistent with
+  // the GET handler above.
   if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? 'Update failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
   }
   return NextResponse.json({ chat: data });
 }

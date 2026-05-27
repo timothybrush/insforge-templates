@@ -39,24 +39,29 @@ export function ShareChatButton({
 
   async function toggleShare(enable: boolean) {
     setBusy(true);
-    const res = await fetch(`/api/chats/${chatId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ share_enabled: enable }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      chat?: { share_token: string | null };
-      error?: string;
-    };
-    setBusy(false);
-    if (!res.ok) {
-      toast.error(data.error ?? 'Failed to update share state');
-      return;
+    try {
+      const res = await fetch(`/api/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ share_enabled: enable }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        chat?: { share_token: string | null };
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to update share state');
+        return;
+      }
+      const next = data.chat?.share_token ?? null;
+      setShareToken(next);
+      onShareTokenChange?.(next);
+      toast.success(enable ? 'Share link created' : 'Share link revoked');
+    } catch {
+      toast.error('Failed to update share state');
+    } finally {
+      setBusy(false);
     }
-    const next = data.chat?.share_token ?? null;
-    setShareToken(next);
-    onShareTokenChange?.(next);
-    toast.success(enable ? 'Share link created' : 'Share link revoked');
   }
 
   async function copyToClipboard() {

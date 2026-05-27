@@ -16,9 +16,15 @@ type SharedPayload = {
 };
 
 async function fetchShared(token: string, origin: string): Promise<SharedPayload | null> {
-  const res = await fetch(`${origin}/api/share/${token}`, { cache: 'no-store' });
-  if (!res.ok) return null;
-  return (await res.json()) as SharedPayload;
+  try {
+    const res = await fetch(`${origin}/api/share/${token}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as SharedPayload;
+  } catch {
+    // Network failure → render the same "unavailable" state as a missing
+    // / revoked token rather than throwing into the Next.js error page.
+    return null;
+  }
 }
 
 export default async function SharedChatPage({

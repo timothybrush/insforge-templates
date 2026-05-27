@@ -61,8 +61,14 @@ export function ChatShell({
     const snapshot = chats;
     setChats((prev) => prev.filter((c) => c.id !== chatId));
 
-    const res = await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
-    if (!res.ok) {
+    let ok = false;
+    try {
+      const res = await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
       setChats(snapshot);
       toast.error(`Failed to delete "${title}"`);
       return;
@@ -80,12 +86,18 @@ export function ChatShell({
     const snapshot = chats;
     setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title: next } : c)));
 
-    const res = await fetch(`/api/chats/${chatId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: next }),
-    });
-    if (!res.ok) {
+    let ok = false;
+    try {
+      const res = await fetch(`/api/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: next }),
+      });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
       setChats(snapshot);
       toast.error('Failed to rename chat');
     }

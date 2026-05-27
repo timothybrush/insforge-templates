@@ -1,32 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useOpenCitation } from '@/lib/hooks/use-open-citation';
 import type { ChatMessageRow } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type Citation = ChatMessageRow['citations'][number];
 
-function CitationButton({ marker, cite }: { marker: number; cite: Citation | undefined }) {
-  const [loading, setLoading] = useState(false);
-
-  async function handleClick(e: React.MouseEvent) {
-    e.preventDefault();
-    if (!cite?.document_id) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/documents/${cite.document_id}/url`);
-      if (!res.ok) throw new Error('Failed to fetch document URL');
-      const { url } = (await res.json()) as { url: string };
-      const fragment = cite.page_number ? `#page=${cite.page_number}` : '';
-      window.open(url + fragment, '_blank', 'noopener,noreferrer');
-    } catch {
-      toast.error('Could not open source PDF');
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function CitationButton({
+  marker,
+  cite,
+  open,
+  loading,
+}: {
+  marker: number;
+  cite: Citation | undefined;
+  open: (documentId: string | null | undefined, pageNumber: number | null | undefined) => void;
+  loading: boolean;
+}) {
   const title = cite
     ? `${cite.file_name}${cite.page_number ? `, page ${cite.page_number}` : ''} — click to open`
     : undefined;
@@ -34,7 +24,10 @@ function CitationButton({ marker, cite }: { marker: number; cite: Citation | und
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={(e) => {
+        e.preventDefault();
+        if (cite?.document_id) open(cite.document_id, cite.page_number);
+      }}
       disabled={loading || !cite?.document_id}
       title={title}
       className={cn(
@@ -47,7 +40,12 @@ function CitationButton({ marker, cite }: { marker: number; cite: Citation | und
   );
 }
 
-function renderWithCitations(text: string, citations: Citation[]) {
+function renderWithCitations(
+  text: string,
+  citations: Citation[],
+  open: (documentId: string | null | undefined, pageNumber: number | null | undefined) => void,
+  loadingId: string | null,
+) {
   if (citations.length === 0) return text;
   const parts: Array<string | { marker: number; key: string }> = [];
   const regex = /\[(\d+)\]/g;
@@ -63,7 +61,15 @@ function renderWithCitations(text: string, citations: Citation[]) {
   return parts.map((p, i) => {
     if (typeof p === 'string') return <span key={`t-${i}`}>{p}</span>;
     const cite = citations.find((c) => c.marker === p.marker);
-    return <CitationButton key={p.key} marker={p.marker} cite={cite} />;
+    return (
+      <CitationButton
+        key={p.key}
+        marker={p.marker}
+        cite={cite}
+        open={open}
+        loading={loadingId === cite?.document_id}
+      />
+    );
   });
 }
 
@@ -78,6 +84,7 @@ export function ChatMessage({
   citations?: Citation[];
   isStreaming?: boolean;
 }) {
+  const { open, loadingId } = useOpenCitation();
   return (
     <div className={cn('flex w-full gap-3', role === 'user' ? 'justify-end' : 'justify-start')}>
       <div
@@ -86,7 +93,7 @@ export function ChatMessage({
           role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card/70 text-foreground',
         )}
       >
-        {role === 'assistant' ? renderWithCitations(content, citations) : content}
+        {role === 'assistant' ? renderWithCitations(content, citations, open, loadingId) : content}
         {isStreaming ? <span className="ml-1 inline-block size-2 animate-pulse rounded-full bg-current align-baseline" /> : null}
       </div>
     </div>

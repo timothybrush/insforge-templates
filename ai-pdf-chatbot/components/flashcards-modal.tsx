@@ -24,25 +24,39 @@ export function FlashcardsModal({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/documents/${documentId}/flashcards`);
-    const data = await res.json();
-    setCards(data.flashcards ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/documents/${documentId}/flashcards`);
+      if (!res.ok) {
+        setCards([]);
+        return;
+      }
+      const data = await res.json();
+      setCards(data.flashcards ?? []);
+    } catch {
+      setCards([]);
+      toast.error('Failed to load flashcards');
+    } finally {
+      setLoading(false);
+    }
   }, [documentId]);
 
   const generate = useCallback(async () => {
     setGenerating(true);
-    const res = await fetch(`/api/documents/${documentId}/flashcards`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error(data.error ?? 'Failed to generate flashcards');
+    try {
+      const res = await fetch(`/api/documents/${documentId}/flashcards`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to generate flashcards');
+        return;
+      }
+      setCards(data.flashcards ?? []);
+      setIndex(0);
+      setRevealed(false);
+    } catch {
+      toast.error('Failed to generate flashcards');
+    } finally {
       setGenerating(false);
-      return;
     }
-    setCards(data.flashcards ?? []);
-    setIndex(0);
-    setRevealed(false);
-    setGenerating(false);
   }, [documentId]);
 
   useEffect(() => {

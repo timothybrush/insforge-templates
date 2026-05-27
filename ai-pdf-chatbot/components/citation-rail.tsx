@@ -1,35 +1,24 @@
 'use client';
 
 import { ExternalLink, Loader2 } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useOpenCitation } from '@/lib/hooks/use-open-citation';
 import type { ChatMessageRow } from '@/lib/types';
 
 type Citation = ChatMessageRow['citations'][number];
 
-function OpenSourceButton({ cite }: { cite: Citation }) {
-  const [loading, setLoading] = useState(false);
-
-  async function handleClick() {
-    if (!cite.document_id) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/documents/${cite.document_id}/url`);
-      if (!res.ok) throw new Error('failed');
-      const { url } = (await res.json()) as { url: string };
-      const fragment = cite.page_number ? `#page=${cite.page_number}` : '';
-      window.open(url + fragment, '_blank', 'noopener,noreferrer');
-    } catch {
-      toast.error('Could not open source PDF');
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function OpenSourceButton({
+  cite,
+  open,
+  loading,
+}: {
+  cite: Citation;
+  open: (documentId: string | null | undefined, pageNumber: number | null | undefined) => void;
+  loading: boolean;
+}) {
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => open(cite.document_id, cite.page_number)}
       disabled={loading || !cite.document_id}
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
     >
@@ -40,6 +29,8 @@ function OpenSourceButton({ cite }: { cite: Citation }) {
 }
 
 export function CitationRail({ citations }: { citations: Citation[] }) {
+  const { open, loadingId } = useOpenCitation();
+
   if (citations.length === 0) {
     return (
       <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border bg-card/30 p-4 text-sm text-muted-foreground lg:block">
@@ -62,7 +53,13 @@ export function CitationRail({ citations }: { citations: Citation[] }) {
                 [{c.marker}] {c.file_name}
                 {c.page_number != null ? <> · page {c.page_number}</> : null}
               </div>
-              {c.document_id ? <OpenSourceButton cite={c} /> : null}
+              {c.document_id ? (
+                <OpenSourceButton
+                  cite={c}
+                  open={open}
+                  loading={loadingId === c.document_id}
+                />
+              ) : null}
             </div>
             <p className="text-xs text-foreground/80">{c.snippet}</p>
           </li>

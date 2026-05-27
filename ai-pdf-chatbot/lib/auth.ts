@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { nextCookies } from 'better-auth/next-js';
 import { Pool } from 'pg';
 
 // During `next build`, Next.js loads route modules to collect page
@@ -64,4 +65,10 @@ export const auth = betterAuth({
       if (error) throw new Error(error.message ?? 'Failed to send reset email');
     },
   },
+
+  // nextCookies bridges BA's cookie writes through Next.js's cookies()
+  // API so server actions (e.g. signOut in lib/auth-actions.ts) actually
+  // clear the session cookie. Without it, signOut hits the API but the
+  // browser-side cookie sticks around until next request.
+  plugins: [nextCookies()],
 });
