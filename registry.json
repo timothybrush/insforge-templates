@@ -6,7 +6,7 @@
     "category": "e-commerce",
     "framework": "nextjs",
     "features": ["Order Dashboard", "shadcn/ui", "Auth"],
-    "tags": ["e-commerce", "stripe", "storefront"],
+    "tags": ["e-commerce", "storefront"],
     "cover": "assets/covers/e-commerce.png",
     "demo_url": "https://demoecommerce.insforge.site/",
     "author": "InsForge",
