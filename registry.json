@@ -57,7 +57,7 @@
     "description": "Drop a PDF, get a chatbot that answers questions with citations back to the source page. Production-grade RAG without LangChain — pgvector + InsForge AI doing the work.",
     "category": "ai",
     "framework": "nextjs",
-    "features": ["RAG", "pgvector", "OpenRouter", "Auth"],
+    "features": ["RAG", "pgvector", "OpenRouter", "Better Auth"],
     "tags": ["rag", "pdf", "chatbot", "embeddings", "pgvector", "langchain-alternative"],
     "cover": "assets/covers/ai-pdf-chatbot.png",
     "demo_url": "https://aipdfchat.insforge.site",
