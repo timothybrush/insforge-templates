@@ -69,6 +69,7 @@ export async function POST(req: Request) {
   const ingestResult = await ingestPdf(client, {
     userId: auth.viewer.id,
     documentId: doc.id,
+    fileName: file.name,
     buffer,
   });
 

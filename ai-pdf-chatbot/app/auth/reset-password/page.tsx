@@ -1,25 +1,28 @@
 import Link from 'next/link';
 import { AuthShell } from '@/components/auth-shell';
 import { ResetPasswordForm } from '@/components/reset-password-form';
-import { getAuthConfig } from '@/lib/auth-actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ResetPasswordPage() {
-  const config = await getAuthConfig();
-  const resetMethod = (config.resetPasswordMethod ?? 'code').toLowerCase();
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
+  const { token } = await searchParams;
+  const hasToken = Boolean(token);
 
   return (
     <AuthShell
       eyebrow="Reset password"
       title="Recover access"
       description={
-        resetMethod === 'link'
-          ? 'Request a reset link and finish the password update from your email.'
-          : 'Request a reset code, verify it here, and choose a new password.'
+        hasToken
+          ? 'Choose a new password to finish recovering your account.'
+          : 'Enter your email and we’ll send a reset link.'
       }
     >
-      <ResetPasswordForm resetPasswordMethod={resetMethod} />
+      <ResetPasswordForm token={token ?? null} />
 
       <p className="text-center text-sm text-muted-foreground">
         Back to{' '}

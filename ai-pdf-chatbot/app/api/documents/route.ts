@@ -14,7 +14,7 @@ export async function GET() {
   const client = createInsforgeServerClient({ accessToken: auth.accessToken });
   const { data, error } = await client.database
     .from('documents')
-    .select('id, file_name, file_size, mime_type, status, error, page_count, created_at')
+    .select('id, file_name, file_size, mime_type, status, error, page_count, summary, suggested_questions, created_at')
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
