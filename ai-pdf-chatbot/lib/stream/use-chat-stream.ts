@@ -23,7 +23,12 @@ export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null);
 
   const send = useCallback(
-    async (params: { input: string; chatId?: string; documentIds?: string[] }) => {
+    async (params: {
+      input: string;
+      chatId?: string;
+      documentIds?: string[];
+      workspaceId?: string | null;
+    }) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;

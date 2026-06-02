@@ -21,6 +21,11 @@
 - PDF upload (≤ 10 MB) with server-side extraction via `pdfjs-dist`
 - Vector search on InsForge pgvector (`vector(1536)` + ivfflat cosine)
 - Streaming chat with bracketed `[n]` source citations
+- **Workspaces** — NotebookLM-style containers that group related PDFs, chats, mindmaps, flashcards, and audio overviews
+- **Inline PDF viewer** — click a citation, jump to the page, and see the cited passage highlighted in the source
+- **Mindmap** — workspace-wide concept tree, generated from PDF summaries and rendered with Markmap
+- **Spaced repetition** — flashcards land in a per-workspace SRS queue (SM-2 lite, three review grades)
+- **Audio Overview** — NotebookLM-style two-host podcast summary using OpenAI TTS (optional, opt-in)
 - **Better Auth** for email + password sign-in — user/session tables live in your InsForge Postgres
 - HS256 bridge JWT from BA → InsForge: RLS reads `requesting_user_id()` so every user only sees their own documents and chats
 - shadcn/ui + Tailwind 4 design tokens
@@ -93,6 +98,7 @@ npm install
 - **pgvector extension** — the migration runs `create extension if not exists vector;` against the `public` schema. Supported on any standard InsForge project.
 - **Node 18+** for `node:test` and the ESM `pdfjs-dist` build.
 - **InsForge SMTP** configured if you want password resets to send mail. Cloud projects: configured automatically. Self-hosted: `PUT /api/auth/smtp-config`.
+- **OpenAI API key (optional)** — required only for the Audio Overview tab. Set `OPENAI_API_KEY` in `.env.local`; without it the workspace audio tab shows a friendly "configure to enable" prompt and everything else still works.
 
 ## Architecture
 

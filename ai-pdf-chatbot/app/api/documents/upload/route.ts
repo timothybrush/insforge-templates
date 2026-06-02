@@ -17,6 +17,8 @@ export async function POST(req: Request) {
 
   const formData = await req.formData();
   const file = formData.get('file');
+  const rawWorkspaceId = formData.get('workspaceId');
+  const workspaceId = typeof rawWorkspaceId === 'string' && rawWorkspaceId ? rawWorkspaceId : null;
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
@@ -33,6 +35,7 @@ export async function POST(req: Request) {
     .from('documents')
     .insert({
       user_id: auth.viewer.id,
+      workspace_id: workspaceId,
       file_name: file.name,
       file_size: file.size,
       mime_type: file.type,

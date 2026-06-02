@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChatShell } from '@/components/chat-shell';
@@ -21,20 +21,36 @@ type DocSummaryRow = {
   suggested_questions: string[];
 };
 
+// useSearchParams() requires a Suspense boundary in Next 16 so the page
+// can pre-render. We wrap the inner component instead of marking the
+// whole page dynamic.
 export default function ChatHomePage() {
+  return (
+    <Suspense fallback={null}>
+      <ChatHomePageInner />
+    </Suspense>
+  );
+}
+
+function ChatHomePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `/chat?workspace=<id>` scopes new chats to that workspace. Empty when
+  // the user lands on /chat directly (Unsorted chats).
+  const workspaceId = searchParams?.get('workspace') ?? null;
   const { state, send } = useChatStream();
   const [pendingInput, setPendingInput] = useState<string | null>(null);
   const [citations] = useState<Citation[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   // Pull a few suggested questions from the most recently uploaded, ready
-  // document so a brand-new chat has a one-tap starting point. Falls back
-  // to the empty state if no doc is ready yet.
+  // document. When a workspace is set, only consider docs in that
+  // workspace so suggestions stay relevant.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const res = await fetch('/api/documents');
+      const url = workspaceId ? `/api/documents?workspace=${workspaceId}` : '/api/documents';
+      const res = await fetch(url);
       if (!res.ok) return;
       const data = (await res.json()) as { documents: DocSummaryRow[] };
       if (cancelled) return;
@@ -46,11 +62,11 @@ export default function ChatHomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceId]);
 
   async function handleSubmit(input: string) {
     setPendingInput(input);
-    const result = await send({ input });
+    const result = await send({ input, workspaceId });
     if (!result) {
       if (state.phase === 'error') toast.error(state.message);
       return;

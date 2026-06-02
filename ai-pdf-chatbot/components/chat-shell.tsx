@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Menu, MessageSquare, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { FileText, FolderOpen, Menu, MessageSquare, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { SidebarAccountBar } from '@/components/sidebar-account-bar';
+import { PdfDrawer } from '@/components/pdf-drawer';
+import { PdfViewerProvider } from '@/lib/pdf/viewer-context';
 import { authClient } from '@/lib/auth-client';
 import type { AuthViewer } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -112,6 +114,12 @@ export function ChatShell({
             New chat
           </Link>
         </Button>
+        <Button asChild variant="ghost" className="justify-start">
+          <Link href="/workspaces">
+            <FolderOpen className="mr-2 size-4" />
+            Workspaces
+          </Link>
+        </Button>
         <Button asChild variant="ghost" className="mb-4 justify-start">
           <Link href="/documents">
             <FileText className="mr-2 size-4" />
@@ -194,6 +202,7 @@ export function ChatShell({
   );
 
   return (
+    <PdfViewerProvider>
     <div className="flex h-dvh overflow-hidden">
       {/* Desktop sidebar */}
       <nav className="hidden w-64 shrink-0 flex-col border-r border-border bg-card/30 md:flex">
@@ -244,6 +253,10 @@ export function ChatShell({
           {rail}
         </main>
       </div>
+
+      {/* Inline PDF viewer overlays the chat when a citation is opened. */}
+      <PdfDrawer />
     </div>
+    </PdfViewerProvider>
   );
 }
