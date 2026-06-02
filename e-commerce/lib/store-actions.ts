@@ -8,6 +8,7 @@ import {
 import {
   addItemToCart,
   createAddress,
+  createCheckoutSessionForOrder,
   deleteSavedAddress,
   placeOrderForUser,
   removeCartItem,
@@ -70,11 +71,24 @@ export async function placeOrderAction(payload: {
     note: payload.note,
   });
 
+  const { headers } = await import('next/headers');
+  const headersList = await headers();
+  const host = headersList.get('host') ?? 'localhost:3000';
+  const protocol = host.startsWith('localhost') ? 'http' : 'https';
+  const origin = `${protocol}://${host}`;
+
+  const checkoutUrl = await createCheckoutSessionForOrder({
+    accessToken,
+    userId: viewer.id,
+    userEmail: viewer.email,
+    orderId,
+    successOrigin: origin,
+  });
+
   revalidatePath('/cart');
-  revalidatePath('/checkout');
   revalidatePath('/account/orders');
 
-  return { orderId };
+  return { orderId, checkoutUrl };
 }
 
 export async function createSavedAddressAction(input: AddressInput) {

@@ -603,6 +603,119 @@ export async function placeOrderForUser(args: {
   return data as string;
 }
 
+export async function createCheckoutSessionForOrder(args: {
+  accessToken: string;
+  userId: string;
+  userEmail: string | null;
+  orderId: string;
+  successOrigin: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+
+  const { data: order, error: orderError } = await insforge.database
+    .from('orders')
+    .select('id, total_cents, subtotal_cents, shipping_cents, tax_cents, email')
+    .eq('id', args.orderId)
+    .eq('user_id', args.userId)
+    .single();
+
+  assertNoDatabaseError(orderError, 'Unable to load order.');
+  if (!order) throw new Error('Order not found.');
+
+  const { data: items, error: itemsError } = await insforge.database
+    .from('order_items')
+    .select('product_id, variant_id, quantity, unit_price_cents, product_name')
+    .eq('order_id', args.orderId);
+
+  assertNoDatabaseError(itemsError, 'Unable to load order items.');
+  if (!items || items.length === 0) throw new Error('Order has no items.');
+
+  const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean))) as string[];
+  const variantIds = Array.from(new Set(items.map((i) => i.variant_id).filter(Boolean))) as string[];
+
+  const { data: products } = await insforge.database
+    .from('products')
+    .select('id, stripe_price_id')
+    .in('id', productIds);
+
+  const { data: variants } = variantIds.length
+    ? await insforge.database
+        .from('product_variants')
+        .select('id, stripe_price_id')
+        .in('id', variantIds)
+    : { data: [] };
+
+  const productPriceMap = new Map<string, string | null>(
+    (products ?? []).map((p) => [p.id, p.stripe_price_id ?? null]),
+  );
+  const variantPriceMap = new Map<string, string | null>(
+    (variants ?? []).map((v) => [v.id, v.stripe_price_id ?? null]),
+  );
+
+  const lineItems = items.map((item) => {
+    const priceId = item.variant_id
+      ? variantPriceMap.get(item.variant_id)
+      : productPriceMap.get(item.product_id);
+
+    if (!priceId) {
+      throw new Error(
+        `Missing Stripe price for "${item.product_name}". See the README "Configure Stripe payments" section for setup.`,
+      );
+    }
+
+    return { stripePriceId: priceId, quantity: item.quantity };
+  });
+
+  const { data: session, error: sessionError } = await insforge.payments.createCheckoutSession('test', {
+    mode: 'payment',
+    lineItems,
+    successUrl: `${args.successOrigin}/checkout/success?order_id=${args.orderId}&session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${args.successOrigin}/cart`,
+    subject: { type: 'user', id: args.userId },
+    customerEmail: args.userEmail ?? order.email ?? null,
+    metadata: { order_id: args.orderId },
+    idempotencyKey: `order:${args.orderId}`,
+  });
+
+  if (sessionError) throw sessionError;
+  if (!session?.checkoutSession?.url) {
+    throw new Error('Stripe checkout session was created but no URL was returned.');
+  }
+
+  return session.checkoutSession.url;
+}
+
+export async function finalizeOrderForUser(args: {
+  accessToken: string;
+  orderId: string;
+  stripeSessionId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+
+  const { data: paymentRow, error: payErr } = await insforge.database
+    .from('payments.checkout_sessions')
+    .select('payment_status, stripe_payment_intent_id')
+    .eq('stripe_checkout_session_id', args.stripeSessionId)
+    .single();
+
+  assertNoDatabaseError(payErr, 'Unable to verify payment.');
+
+  if (!paymentRow || paymentRow.payment_status !== 'paid') {
+    return { paid: false as const };
+  }
+
+  const { data: order, error } = await insforge.database.rpc('finalize_order', {
+    p_order_id: args.orderId,
+    p_stripe_session_id: args.stripeSessionId,
+    p_payment_intent_id: paymentRow.stripe_payment_intent_id ?? null,
+    p_discount_code: null,
+    p_discount_cents: 0,
+  });
+
+  assertNoDatabaseError(error, 'Unable to finalize order.');
+  return { paid: true as const, order };
+}
+
 export async function getOrders(args: {
   accessToken: string;
   userId: string;
