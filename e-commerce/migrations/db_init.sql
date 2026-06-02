@@ -243,10 +243,12 @@ create index if not exists order_status_events_order_idx on public.order_status_
 
 alter table public.order_status_events enable row level security;
 
-create policy if not exists order_status_events_owner_select on public.order_status_events
+drop policy if exists order_status_events_owner_select on public.order_status_events;
+create policy order_status_events_owner_select on public.order_status_events
   for select using (auth.uid() = user_id);
 
-create policy if not exists order_status_events_admin_all on public.order_status_events
+drop policy if exists order_status_events_admin_all on public.order_status_events;
+create policy order_status_events_admin_all on public.order_status_events
   for all using (public.is_project_admin());
 
 create table if not exists public.wishlists (
@@ -261,10 +263,12 @@ create index if not exists wishlists_user_idx on public.wishlists (user_id, crea
 
 alter table public.wishlists enable row level security;
 
-create policy if not exists wishlists_owner_all on public.wishlists
+drop policy if exists wishlists_owner_all on public.wishlists;
+create policy wishlists_owner_all on public.wishlists
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create policy if not exists wishlists_admin_all on public.wishlists
+drop policy if exists wishlists_admin_all on public.wishlists;
+create policy wishlists_admin_all on public.wishlists
   for all using (public.is_project_admin());
 
 alter table public.cart_items
@@ -286,6 +290,18 @@ alter table public.orders
   add column if not exists stripe_payment_intent_id text,
   add column if not exists discount_code text,
   add column if not exists discount_cents integer not null default 0;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'orders_discount_non_negative'
+      and conrelid = 'public.orders'::regclass
+  ) then
+    alter table public.orders
+      add constraint orders_discount_non_negative check (discount_cents >= 0);
+  end if;
+end $$;
 
 do $$
 begin
@@ -476,6 +492,11 @@ begin
 end;
 $$;
 
+-- finalize_order is called by the user's session after Stripe redirects them back
+-- to the success page. It expects auth.uid() to be the buyer's user id and will
+-- raise if called without an authenticated context (e.g. a Stripe webhook server-
+-- to-server call). The success page reads payments.checkout_sessions.payment_status
+-- to verify payment before invoking this RPC.
 create or replace function public.finalize_order(
   p_order_id uuid,
   p_stripe_session_id text,
