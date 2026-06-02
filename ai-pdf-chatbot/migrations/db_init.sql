@@ -6,6 +6,11 @@
 -- After this lands, `npm run auth:migrate` populates better_auth.{user,
 -- session,account,verification} via Better Auth's own Kysely migrations.
 
+-- ivfflat index creation on document_chunks.embedding needs more than the
+-- 16MB default maintenance_work_mem on InsForge cloud. Bump it for this
+-- session so `CREATE INDEX ... ivfflat` doesn't fail with "memory required".
+set maintenance_work_mem = '128MB';
+
 create extension if not exists pgcrypto;
 create extension if not exists vector;
 
@@ -365,3 +370,9 @@ drop policy if exists audio_overviews_owner_delete on storage.objects;
 create policy audio_overviews_owner_delete on storage.objects
   for delete to authenticated
   using (bucket = 'audio-overviews' and uploaded_by = public.requesting_user_id());
+
+-- PostgREST caches the table schema on startup and does NOT auto-refresh
+-- after a freshly-imported migration. Without this notify, the SDK hits
+-- 404 ("Cannot POST /api/database/<new_table>") until the gateway is
+-- restarted. Sending NOTIFY pgrst makes the gateway reload immediately.
+notify pgrst, 'reload schema';
