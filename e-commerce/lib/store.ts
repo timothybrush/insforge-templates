@@ -10,6 +10,7 @@ import type {
   CartItem,
   Category,
   Order,
+  OrderStatusEvent,
   Product,
   ProductOption,
   ProductOptionValue,
@@ -757,4 +758,19 @@ export async function getOrderById(args: {
   const { data, error } = await query.maybeSingle();
   assertNoDatabaseError(error, 'Unable to load order.');
   return data as Order | null;
+}
+
+export async function getOrderTimeline(args: {
+  accessToken: string;
+  orderId: string;
+}): Promise<OrderStatusEvent[]> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('order_status_events')
+    .select('*')
+    .eq('order_id', args.orderId)
+    .order('created_at', { ascending: true });
+
+  assertNoDatabaseError(error, 'Unable to load order timeline.');
+  return (data ?? []) as OrderStatusEvent[];
 }

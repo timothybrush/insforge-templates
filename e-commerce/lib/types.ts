@@ -139,6 +139,25 @@ export interface OrderItem {
   line_total_cents: number;
 }
 
+export type OrderStatusEventType =
+  | 'order_placed'
+  | 'payment_succeeded'
+  | 'payment_failed'
+  | 'fulfillment_processing'
+  | 'fulfillment_shipped'
+  | 'fulfillment_delivered'
+  | 'order_cancelled'
+  | 'order_refunded';
+
+export interface OrderStatusEvent {
+  id: string;
+  order_id: string;
+  user_id: string;
+  event_type: OrderStatusEventType;
+  message: string | null;
+  created_at: string;
+}
+
 export interface Order {
   id: string;
   order_number: string;
