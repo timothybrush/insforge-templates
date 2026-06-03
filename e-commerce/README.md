@@ -16,6 +16,10 @@ This starter includes a public storefront, seeded catalog data, customer authent
 - [InsForge](https://insforge.dev) authentication, database, storage, and Row Level Security
 - [Vercel Analytics](https://vercel.com/docs/analytics) for page-level traffic insights
 - Built with [Next.js](https://nextjs.org), React 19, and [Tailwind CSS](https://tailwindcss.com)
+- Real Stripe Checkout with Apple Pay, Google Pay, and Link via InsForge Payments
+- Promotion codes redeemable at Stripe Checkout (configured in your Stripe dashboard, see Stripe setup section)
+- Order status timeline: placed, paid, preparing, shipped, delivered
+- Wishlist with optimistic heart toggle and a dedicated `/account/wishlist` page
 
 ## Demo
 
@@ -94,6 +98,58 @@ Use the local setup below if you want to inspect the repo, edit environment vari
    ```
 
 8. Open [http://localhost:3000](http://localhost:3000)
+
+## Configure Stripe payments
+
+This template uses InsForge's managed Stripe integration. The Stripe secret key is stored on the InsForge backend, never in your frontend.
+
+1. Add your Stripe test key to InsForge:
+
+   ```bash
+   npx @insforge/cli payments config set test sk_test_xxx
+   ```
+
+2. Create one Stripe product + price per row in `public.products` (and per row in `public.product_variants` if you sell variants). The CLI mirrors them into `payments.products` and `payments.prices`:
+
+   ```bash
+   npx @insforge/cli payments products create \
+     --environment test \
+     --name "Linen sofa" \
+     --idempotency-key "product:linen-sofa"
+
+   npx @insforge/cli payments prices create \
+     --environment test \
+     --product prod_xxx \
+     --currency usd \
+     --amount 129900
+   ```
+
+3. Copy the resulting `price_xxx` and write it onto the matching `public.products` row (or `public.product_variants` row for variant level pricing):
+
+   ```sql
+   update public.products
+   set stripe_price_id = 'price_xxx'
+   where slug = 'linen-sofa';
+   ```
+
+4. When you are ready for production, repeat with `payments config set live sk_live_xxx` and seed live prices. The current implementation passes `'test'` as the environment to `payments.createCheckoutSession` (see `lib/store.ts`). Change that string, or wire it from an env variable, when you flip to live.
+
+### Promotion codes
+
+The template enables promotion codes at the Stripe Checkout level. To use them:
+
+1. In your Stripe dashboard, create a Coupon, then create a Promotion Code from that coupon (e.g. `SUMMER10` for 10 percent off).
+2. **Note:** the InsForge SDK currently does not expose the `allowPromotionCodes` flag on the create-checkout-session call. Until it does, configure your Stripe Checkout settings to allow promotion codes by default at the account level, or pass the discount via the `discounts` parameter once the SDK supports it. The promo code input box on the Stripe Checkout page is controlled by Stripe, not by this template.
+3. The `orders.discount_code` and `orders.discount_cents` columns are wired up but will not be populated until the SDK surfaces those fields on the payments projection table.
+
+## Order lifecycle
+
+1. The `place_order` PL/pgSQL function creates a `pending` order and records an `order_placed` event in `order_status_events`. It does not deduct inventory and does not convert the cart yet.
+2. The `placeOrderAction` server action creates a Stripe Checkout Session via `insforge.payments.createCheckoutSession`.
+3. The user is redirected to Stripe to enter a card or apply a promotion code.
+4. Stripe redirects back to `/checkout/success?order_id=...&session_id=...`.
+5. The success page polls `finalizeOrderAction`, which reads `payments.checkout_sessions.payment_status`. When `paid`, it calls the `finalize_order` RPC, which marks the order as paid + confirmed + processing, decrements inventory, converts the cart, and appends `payment_succeeded` + `fulfillment_processing` events.
+6. The order detail page renders the timeline as a stepper. Subsequent fulfillment events (`fulfillment_shipped`, `fulfillment_delivered`) can be inserted by your fulfillment workflow to advance the stepper.
 
 ## Deploy to Vercel
 
