@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, LogOut, Package2, UserRound } from 'lucide-react';
+import { ChevronDown, Heart, LogOut, Package2, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from '@/lib/auth-actions';
 import { cn } from '@/lib/utils';
@@ -92,6 +92,15 @@ export function AccountDropdown({
             >
               <Package2 className="size-4 text-muted-foreground" />
               Orders
+            </Link>
+            <Link
+              className="flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm text-foreground hover:bg-muted/70"
+              href="/account/wishlist"
+              onClick={() => setIsOpen(false)}
+              role="menuitem"
+            >
+              <Heart className="size-4 text-muted-foreground" />
+              Wishlist
             </Link>
             <Link
               className="flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm text-foreground hover:bg-muted/70"

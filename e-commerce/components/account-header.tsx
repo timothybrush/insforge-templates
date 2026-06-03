@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 
 const accountTabs = [
   { href: '/account/orders', label: 'Orders', key: 'orders' },
+  { href: '/account/wishlist', label: 'Wishlist', key: 'wishlist' },
   { href: '/account/profile', label: 'Profile', key: 'profile' },
 ] as const;
 
@@ -14,7 +15,7 @@ export function AccountHeader({
 }: {
   title: string;
   description?: string;
-  activeTab: 'orders' | 'profile';
+  activeTab: 'orders' | 'wishlist' | 'profile';
   eyebrow?: string;
 }) {
   return (

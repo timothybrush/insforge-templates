@@ -4,7 +4,8 @@ import { ProductCard } from '@/components/product-card';
 import { ProductsSearch } from '@/components/products-search';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
-import { getCategories, getProducts } from '@/lib/store';
+import { getCurrentAuthState } from '@/lib/auth-state';
+import { getCategories, getProducts, getWishlistProductIds } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +15,17 @@ export default async function ProductsPage({
   searchParams: Promise<{ category?: string; search?: string }>;
 }) {
   const params = await searchParams;
-  const [categories, products] = await Promise.all([
+  const [categories, products, authState] = await Promise.all([
     getCategories(),
     getProducts({ category: params.category, search: params.search }),
+    getCurrentAuthState(),
   ]);
+
+  const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
+  const wishlistIds = viewerId && authState.accessToken
+    ? await getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId })
+    : new Set<string>();
+  const showWishlist = !!viewerId;
   const activeCategory = params.category ?? null;
 
   function buildCatalogHref(category?: string) {
@@ -83,6 +91,8 @@ export default async function ProductsPage({
                 product={product}
                 imageFetchPriority={index === 0 ? 'high' : 'auto'}
                 imageLoading={index === 0 ? 'eager' : 'lazy'}
+                showWishlist={showWishlist}
+                inWishlist={wishlistIds.has(product.id)}
               />
             ))}
           </section>

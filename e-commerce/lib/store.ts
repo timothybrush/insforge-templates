@@ -17,6 +17,7 @@ import type {
   ProductVariant,
   SavedAddress,
   ShoppingCart,
+  WishlistItem,
 } from '@/lib/types';
 
 type InsforgeClient = ReturnType<typeof createInsforgeServerClient>;
@@ -472,6 +473,66 @@ export async function removeCartItem(accessToken: string, itemId: string) {
     .eq('id', itemId);
 
   assertNoDatabaseError(error, 'Unable to remove cart item.');
+}
+
+export async function getWishlistProductIds(args: {
+  accessToken: string;
+  userId: string;
+}): Promise<Set<string>> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('wishlists')
+    .select('product_id')
+    .eq('user_id', args.userId);
+
+  assertNoDatabaseError(error, 'Unable to load wishlist.');
+  return new Set((data ?? []).map((row) => row.product_id as string));
+}
+
+export async function getWishlistWithProducts(args: {
+  accessToken: string;
+  userId: string;
+}): Promise<WishlistItem[]> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('wishlists')
+    .select('*, product:products(*)')
+    .eq('user_id', args.userId)
+    .order('created_at', { ascending: false });
+
+  assertNoDatabaseError(error, 'Unable to load wishlist.');
+  return (data ?? []) as WishlistItem[];
+}
+
+export async function addToWishlist(args: {
+  accessToken: string;
+  userId: string;
+  productId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { error } = await insforge.database
+    .from('wishlists')
+    .insert({ user_id: args.userId, product_id: args.productId });
+
+  // Tolerate the unique-constraint conflict so toggling twice doesn't blow up.
+  if (error && !`${error.message ?? ''}`.includes('wishlists_user_product_unique')) {
+    assertNoDatabaseError(error, 'Unable to add to wishlist.');
+  }
+}
+
+export async function removeFromWishlist(args: {
+  accessToken: string;
+  userId: string;
+  productId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { error } = await insforge.database
+    .from('wishlists')
+    .delete()
+    .eq('user_id', args.userId)
+    .eq('product_id', args.productId);
+
+  assertNoDatabaseError(error, 'Unable to remove from wishlist.');
 }
 
 export async function getSavedAddresses(userId: string, accessToken: string) {

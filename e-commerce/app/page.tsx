@@ -5,16 +5,24 @@ import { ProductCard } from '@/components/product-card';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { Button } from '@/components/ui/button';
-import { getCategories, getFeaturedProducts, getProducts } from '@/lib/store';
+import { getCurrentAuthState } from '@/lib/auth-state';
+import { getCategories, getFeaturedProducts, getProducts, getWishlistProductIds } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const [categories, featuredProducts, latestProducts] = await Promise.all([
+  const [categories, featuredProducts, latestProducts, authState] = await Promise.all([
     getCategories(),
     getFeaturedProducts(),
     getProducts(),
+    getCurrentAuthState(),
   ]);
+
+  const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
+  const wishlistIds = viewerId && authState.accessToken
+    ? await getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId })
+    : new Set<string>();
+  const showWishlist = !!viewerId;
 
   return (
     <div className="min-h-screen">
@@ -92,7 +100,12 @@ export default async function HomePage() {
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {featuredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                showWishlist={showWishlist}
+                inWishlist={wishlistIds.has(product.id)}
+              />
             ))}
           </div>
         </section>
@@ -126,7 +139,12 @@ export default async function HomePage() {
           </div>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {latestProducts.slice(0, 3).map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                showWishlist={showWishlist}
+                inWishlist={wishlistIds.has(product.id)}
+              />
             ))}
           </div>
         </section>
