@@ -87,15 +87,23 @@ export default function WorkspaceDetailPage({ params }: { params: Promise<{ id: 
   const [editDescription, setEditDescription] = useState('');
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/workspaces/${id}`);
-    if (res.ok) {
-      const data = (await res.json()) as WorkspaceDetail;
-      setDetail(data);
-      setEditName(data.workspace.name);
-      setEditDescription(data.workspace.description ?? '');
-    } else if (res.status === 404) {
-      toast.error('Workspace not found');
-      router.push('/workspaces');
+    try {
+      const res = await fetch(`/api/workspaces/${id}`);
+      if (res.ok) {
+        const data = (await res.json()) as WorkspaceDetail;
+        setDetail(data);
+        setEditName(data.workspace.name);
+        setEditDescription(data.workspace.description ?? '');
+        return;
+      }
+      if (res.status === 404) {
+        toast.error('Workspace not found');
+        router.push('/workspaces');
+        return;
+      }
+      toast.error('Could not load workspace');
+    } catch {
+      toast.error('Could not load workspace');
     }
   }, [id, router]);
 
@@ -372,11 +380,17 @@ function ReviewTab({ workspaceId, dueCount }: { workspaceId: string; dueCount: n
         Flashcards generated from any PDF in this workspace land here on a
         spaced-repetition schedule. Three grades reschedule the card, &quot;Again&quot; brings it back in 5 minutes.
       </p>
-      <Button asChild className="mt-6" disabled={dueCount === 0}>
-        <Link href={`/workspaces/${workspaceId}/review`}>
+      {dueCount === 0 ? (
+        <Button className="mt-6" disabled>
           Start reviewing
-        </Link>
-      </Button>
+        </Button>
+      ) : (
+        <Button asChild className="mt-6">
+          <Link href={`/workspaces/${workspaceId}/review`}>
+            Start reviewing
+          </Link>
+        </Button>
+      )}
     </div>
   );
 }

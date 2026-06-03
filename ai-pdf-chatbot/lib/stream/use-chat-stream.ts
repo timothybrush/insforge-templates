@@ -67,10 +67,14 @@ export function useChatStream() {
             return null;
           } else if (event.type === 'done') {
             setState({ phase: 'idle' });
-            // Tell the sidebar to refresh its list, but only when a brand
-            // new chat was created. Continuing a conversation already on
-            // the list shouldn't trigger a full sidebar refetch — that's
-            // the flash we were trying to avoid.
+            // Tell the sidebar to refresh ONLY when a brand new chat was
+            // created. Continuing a conversation already on the list
+            // intentionally does NOT trigger a refetch even though the
+            // chat would re-sort to the top by last_message_at. Re-sorting
+            // on every assistant turn is the visual jitter the
+            // layout-hoisted sidebar (chat/layout.tsx) was introduced to
+            // fix. The trade-off is mild list staleness for a still UI,
+            // recoverable on next mount.
             if (!params.chatId && resolvedChatId && typeof window !== 'undefined') {
               window.dispatchEvent(new Event('chats:changed'));
             }

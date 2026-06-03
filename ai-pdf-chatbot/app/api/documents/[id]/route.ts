@@ -29,11 +29,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   // Cascade the workspace_id to all flashcards generated from this doc so
   // workspace-wide review queues see them. Documents that don't have
-  // flashcards yet just no-op.
-  await client.database
+  // flashcards yet just no-op. Failures here would silently leave the
+  // doc and its flashcards out of sync, so surface them.
+  const cascade = await client.database
     .from('document_flashcards')
     .update({ workspace_id: body.workspace_id ?? null })
     .eq('document_id', id);
+  if (cascade.error) {
+    return NextResponse.json({ error: cascade.error.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -27,11 +27,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { name?: string; description?: string };
-  const name = body.name?.trim();
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; description?: unknown };
+  // .trim() throws on non-strings, so check types before reaching for it.
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
+  const description =
+    typeof body.description === 'string' ? body.description.trim() || null : null;
 
   const client = createInsforgeServerClient({ accessToken: auth.accessToken });
   const { data, error } = await client.database
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
     .insert({
       user_id: auth.viewer.id,
       name,
-      description: body.description?.trim() || null,
+      description,
     })
     .select()
     .single();

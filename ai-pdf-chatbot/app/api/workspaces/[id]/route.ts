@@ -37,6 +37,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .lte('due_at', new Date().toISOString()),
   ]);
 
+  const firstError = docsRes.error ?? chatsRes.error ?? dueRes.error;
+  if (firstError) {
+    return NextResponse.json({ error: firstError.message }, { status: 500 });
+  }
+
   return NextResponse.json({
     workspace: wsRes.data,
     counts: {
@@ -66,8 +71,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const client = createInsforgeServerClient({ accessToken: auth.accessToken });
-  const { error } = await client.database.from('workspaces').update(patch).eq('id', id);
+  // Use `select` with single-row coerce so we can tell apart "0 rows
+  // matched" (404, e.g. someone else's workspace under RLS) from a
+  // successful update. Without this PATCH was returning ok for any id.
+  const { data, error } = await client.database
+    .from('workspaces')
+    .update(patch)
+    .eq('id', id)
+    .select('id');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }
 

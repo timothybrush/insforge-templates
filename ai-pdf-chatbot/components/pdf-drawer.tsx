@@ -29,7 +29,10 @@ export function PdfDrawer() {
   const documentId = target?.documentId ?? null;
 
   // Fetch a fresh presigned URL whenever the target document changes.
-  // Re-using a URL across documents would 403 on the second open.
+  // Re-using a URL across documents would 403 on the second open. Depend
+  // only on documentId so the effect doesn't re-run on every viewer state
+  // change (e.g. re-renders triggered by close/open toggles in the same
+  // tab) which would refetch the same presigned URL needlessly.
   useEffect(() => {
     if (!documentId) {
       setUrl(null);
@@ -46,7 +49,6 @@ export function PdfDrawer() {
       } catch {
         if (!cancelled) {
           toast.error('Could not open source PDF');
-          ctx?.close();
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -55,7 +57,8 @@ export function PdfDrawer() {
     return () => {
       cancelled = true;
     };
-  }, [documentId, ctx]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId]);
 
   // Esc closes the drawer. Scoped to mount so we don't intercept Esc
   // when the drawer is hidden.

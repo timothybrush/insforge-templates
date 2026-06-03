@@ -26,10 +26,18 @@ export function WorkspacePicker({
     if (!open) return;
     let cancelled = false;
     void (async () => {
-      const res = await fetch('/api/workspaces');
-      if (!res.ok) return;
-      const data = (await res.json()) as { workspaces: WorkspaceLite[] };
-      if (!cancelled) setWorkspaces(data.workspaces ?? []);
+      try {
+        const res = await fetch('/api/workspaces');
+        if (!res.ok) {
+          // Surface as "no workspaces" rather than infinite loader
+          if (!cancelled) setWorkspaces([]);
+          return;
+        }
+        const data = (await res.json()) as { workspaces: WorkspaceLite[] };
+        if (!cancelled) setWorkspaces(data.workspaces ?? []);
+      } catch {
+        if (!cancelled) setWorkspaces([]);
+      }
     })();
     return () => {
       cancelled = true;

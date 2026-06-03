@@ -51,6 +51,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .select('file_name, summary')
     .eq('workspace_id', id)
     .eq('status', 'ready');
+  if (docsRes.error) {
+    return NextResponse.json({ error: docsRes.error.message }, { status: 500 });
+  }
   const docs = (docsRes.data ?? []) as Array<{ file_name: string; summary: string | null }>;
   if (docs.length === 0) {
     return NextResponse.json(

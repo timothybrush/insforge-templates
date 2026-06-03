@@ -41,21 +41,22 @@ export function PdfViewer({ fileUrl, initialPage = 1, highlightPrefix = null }: 
   }, []);
 
   const onPageRender = useCallback(() => {
-    if (!highlightPrefix) return;
     const wrapper = pageWrapperRef.current;
     if (!wrapper) return;
     const layer = wrapper.querySelector('.react-pdf__Page__textContent');
     if (!layer) return;
 
-    // Clear previous highlights, then prefix-match. Span granularity in
-    // pdfjs text layer can vary, so we look for the first span whose
-    // text contains the prefix and walk forward until we cover ~prefix
-    // length. Imperfect on hyphenated/multi-span words but good enough
-    // for "scroll the cited sentence into view" UX.
+    // Always clear stale highlights first so opening a citation without a
+    // snippet doesn't keep the previous citation's yellow text on the page.
     layer.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach((el) => {
       el.classList.remove(HIGHLIGHT_CLASS);
     });
+    if (!highlightPrefix) return;
 
+    // Span granularity in pdfjs text layer can vary, so we look for the
+    // first span whose text contains the prefix and walk forward until we
+    // cover ~prefix length. Imperfect on hyphenated/multi-span words but
+    // good enough for "scroll the cited sentence into view" UX.
     const spans = Array.from(layer.querySelectorAll<HTMLElement>('span'));
     const normalized = normalize(highlightPrefix).slice(0, 60);
     if (!normalized) return;
@@ -99,8 +100,13 @@ export function PdfViewer({ fileUrl, initialPage = 1, highlightPrefix = null }: 
         </span>
         <button
           type="button"
-          onClick={() => setPage((p) => (numPages ? Math.min(numPages, p + 1) : p + 1))}
-          disabled={!!numPages && page >= numPages}
+          onClick={() => {
+            // Don't advance past the document end, and don't advance at all
+            // until react-pdf reports the page count.
+            if (!numPages) return;
+            setPage((p) => Math.min(numPages, p + 1));
+          }}
+          disabled={!numPages || page >= numPages}
           className="inline-flex items-center gap-1 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
           aria-label="Next page"
         >

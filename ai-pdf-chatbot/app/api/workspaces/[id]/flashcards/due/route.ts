@@ -49,6 +49,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .from('documents')
       .select('id, file_name')
       .in('id', docIds);
+    if (docsRes.error) {
+      return NextResponse.json({ error: docsRes.error.message }, { status: 500 });
+    }
     nameById = new Map(
       ((docsRes.data ?? []) as Array<{ id: string; file_name: string }>).map((d) => [d.id, d.file_name]),
     );

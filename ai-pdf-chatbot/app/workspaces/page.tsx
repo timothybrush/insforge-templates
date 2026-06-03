@@ -25,12 +25,19 @@ export default function WorkspacesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const refresh = useCallback(async () => {
-    const res = await fetch('/api/workspaces');
-    if (res.ok) {
-      const data = (await res.json()) as { workspaces: WorkspaceRow[] };
-      setWorkspaces(data.workspaces ?? []);
+    try {
+      const res = await fetch('/api/workspaces');
+      if (res.ok) {
+        const data = (await res.json()) as { workspaces: WorkspaceRow[] };
+        setWorkspaces(data.workspaces ?? []);
+      } else {
+        toast.error('Could not load workspaces');
+      }
+    } catch {
+      toast.error('Could not load workspaces');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

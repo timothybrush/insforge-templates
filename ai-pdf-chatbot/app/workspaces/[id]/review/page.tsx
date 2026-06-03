@@ -35,15 +35,21 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const [grading, setGrading] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/workspaces/${id}/flashcards/due`);
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/workspaces/${id}/flashcards/due`);
+      if (!res.ok) {
+        toast.error('Could not load review queue');
+        setCards([]);
+        return;
+      }
+      const data = (await res.json()) as { cards: DueCard[] };
+      setCards(data.cards ?? []);
+      setIndex(0);
+      setRevealed(false);
+    } catch {
       toast.error('Could not load review queue');
-      return;
+      setCards([]);
     }
-    const data = (await res.json()) as { cards: DueCard[] };
-    setCards(data.cards ?? []);
-    setIndex(0);
-    setRevealed(false);
   }, [id]);
 
   useEffect(() => {

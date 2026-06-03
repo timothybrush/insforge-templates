@@ -55,6 +55,10 @@ export function AudioOverview({
       setScript(data.script ?? null);
       setGeneratedAt(data.generated_at ?? null);
       onChanged();
+    } catch {
+      // Network errors and request aborts land here; the inner block only
+      // covers non-ok HTTP responses, not transport failures.
+      toast.error('Audio generation failed');
     } finally {
       setGenerating(false);
     }

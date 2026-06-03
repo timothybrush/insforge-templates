@@ -123,9 +123,15 @@ function parseScript(raw: string): AudioScriptTurn[] {
       }))
       .filter((t): t is AudioScriptTurn => t.text.length > 0);
   } catch (err) {
-    console.error('[audio-script] JSON parse failed. Raw head:', raw.slice(0, 400));
-    console.error('[audio-script] cleaned head:', cleaned.slice(0, 400));
-    console.error('[audio-script] error:', err);
+    // Avoid logging raw model output: it contains PDF-derived text that
+    // can leak user content to server logs. Just record the failure mode
+    // and shapes so the route can surface a clean error to the caller.
+    const head = cleaned.slice(0, 80);
+    console.error('[audio-script] JSON parse failed', {
+      error: err instanceof Error ? err.message : String(err),
+      cleanedLength: cleaned.length,
+      startsWith: head.startsWith('{') ? 'brace' : 'other',
+    });
     return [];
   }
 }
