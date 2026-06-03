@@ -18,7 +18,7 @@ This starter includes a public storefront, seeded catalog data, customer authent
 - Built with [Next.js](https://nextjs.org), React 19, and [Tailwind CSS](https://tailwindcss.com)
 - Real Stripe Checkout with Apple Pay, Google Pay, and Link via InsForge Payments
 - Promotion codes redeemable at Stripe Checkout (configured in your Stripe dashboard, see Stripe setup section)
-- Order status timeline: placed, paid, preparing, shipped, delivered
+- Order status timeline: placed, payment confirmed, preparing, shipped, delivered
 - Wishlist with optimistic heart toggle and a dedicated `/account/wishlist` page
 
 ## Demo
@@ -136,10 +136,10 @@ This template uses InsForge's managed Stripe integration. The Stripe secret key 
 
 ### Promotion codes
 
-The template enables promotion codes at the Stripe Checkout level. To use them:
+Promotion codes are not enabled by the template today because the InsForge SDK does not yet expose the `allowPromotionCodes` flag on the create-checkout-session call. Once the SDK adds the flag, this template will pass it through automatically. Until then:
 
 1. In your Stripe dashboard, create a Coupon, then create a Promotion Code from that coupon (e.g. `SUMMER10` for 10 percent off).
-2. **Note:** the InsForge SDK currently does not expose the `allowPromotionCodes` flag on the create-checkout-session call. Until it does, configure your Stripe Checkout settings to allow promotion codes by default at the account level, or pass the discount via the `discounts` parameter once the SDK supports it. The promo code input box on the Stripe Checkout page is controlled by Stripe, not by this template.
+2. Configure your Stripe Checkout settings to allow promotion codes by default at the account level, or pass the discount via the `discounts` parameter once the SDK supports it. The promo code input box on the Stripe Checkout page is controlled by Stripe, not by this template.
 3. The `orders.discount_code` and `orders.discount_cents` columns are wired up but will not be populated until the SDK surfaces those fields on the payments projection table.
 
 ## Order lifecycle
