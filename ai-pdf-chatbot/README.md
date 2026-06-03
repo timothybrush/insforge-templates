@@ -1,5 +1,5 @@
 <a href="https://insforge.dev">
-  <h1 align="center">InsForge AI PDF Chatbot</h1>
+  <h1 align="center">InsForge AI Notebook</h1>
 </a>
 
 <p align="center">
