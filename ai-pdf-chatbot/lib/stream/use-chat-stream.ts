@@ -67,10 +67,20 @@ export function useChatStream() {
             return null;
           } else if (event.type === 'done') {
             setState({ phase: 'idle' });
+            // Tell the sidebar to refresh its list, but only when a brand
+            // new chat was created. Continuing a conversation already on
+            // the list shouldn't trigger a full sidebar refetch — that's
+            // the flash we were trying to avoid.
+            if (!params.chatId && resolvedChatId && typeof window !== 'undefined') {
+              window.dispatchEvent(new Event('chats:changed'));
+            }
             return { chatId: resolvedChatId, content: text, citations };
           }
         }
         setState({ phase: 'idle' });
+        if (!params.chatId && resolvedChatId && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('chats:changed'));
+        }
         return { chatId: resolvedChatId, content: text, citations };
       } catch (err) {
         if (controller.signal.aborted) {

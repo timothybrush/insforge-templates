@@ -4,11 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { ChatShell } from '@/components/chat-shell';
 import { ChatInput } from '@/components/chat-input';
 import { ChatMessage } from '@/components/chat-message';
-import { CitationRail } from '@/components/citation-rail';
 import { useChatStream } from '@/lib/stream/use-chat-stream';
+import { useSetRailCitations } from '@/lib/chat/rail-context';
 import type { ChatMessageRow } from '@/lib/types';
 
 type Citation = ChatMessageRow['citations'][number];
@@ -42,6 +41,7 @@ function ChatHomePageInner() {
   const [pendingInput, setPendingInput] = useState<string | null>(null);
   const [citations] = useState<Citation[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const setRailCitations = useSetRailCitations();
 
   // Pull a few suggested questions from the most recently uploaded, ready
   // document. When a workspace is set, only consider docs in that
@@ -77,8 +77,12 @@ function ChatHomePageInner() {
   const streamingText = state.phase === 'streaming' ? state.text : '';
   const streamingCitations = state.phase === 'streaming' ? state.citations : citations;
 
+  useEffect(() => {
+    setRailCitations(streamingCitations);
+  }, [setRailCitations, streamingCitations]);
+
   return (
-    <ChatShell rail={<CitationRail citations={streamingCitations} />}>
+    <>
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {pendingInput ? (
           <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -120,6 +124,6 @@ function ChatHomePageInner() {
         )}
       </div>
       <ChatInput disabled={state.phase === 'streaming'} onSubmit={handleSubmit} />
-    </ChatShell>
+    </>
   );
 }
