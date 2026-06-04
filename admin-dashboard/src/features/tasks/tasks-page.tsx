@@ -10,9 +10,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useActiveWorkspace } from '@/features/dashboard/use-active-workspace'
+import { useApps } from '@/features/apps/use-apps'
 import { buildColumns } from './columns'
 import { TasksDataTable } from './data-table'
 import { TaskFormDialog, type TaskFormMode } from './task-form-dialog'
+import { ShareToSlackDialog } from './share-to-slack-dialog'
 import {
   useBulkDeleteTasks,
   useCreateTask,
@@ -39,6 +41,12 @@ export function TasksPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null)
+
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareTask, setShareTask] = useState<Task | null>(null)
+
+  const { data: apps = [] } = useApps(workspaceId)
+  const slackConnected = apps.some((a) => a.slug === 'slack' && a.connected)
 
   const openCreate = () => {
     setDialogMode('create')
@@ -73,14 +81,21 @@ export function TasksPage() {
     setConfirmOpen(true)
   }
 
+  const openShareToSlack = (task: Task) => {
+    setShareTask(task)
+    setShareOpen(true)
+  }
+
   const columns = useMemo(
     () =>
       buildColumns({
         onEdit: openEdit,
         onDuplicate: openDuplicate,
         onDelete: askDelete,
+        onShareToSlack: openShareToSlack,
+        slackConnected,
       }),
-    [],
+    [slackConnected],
   )
 
   const handleSubmit = async (values: TaskFormValues) => {
@@ -132,6 +147,13 @@ export function TasksPage() {
         initialValues={duplicateSeed}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
         onSubmit={handleSubmit}
+      />
+
+      <ShareToSlackDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        task={shareTask}
+        workspaceId={workspaceId}
       />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

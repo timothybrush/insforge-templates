@@ -6,8 +6,14 @@ export type App = {
   name: string
   description: string
   icon_url: string | null
-  oauth_provider: string | null
+  composio_toolkit_slug: string | null
   display_order: number
+}
+
+type ConnectionConfig = {
+  kind?: 'composio'
+  connected_account_id?: string
+  account_label?: string | null
 }
 
 export type AppConnection = {
@@ -17,6 +23,7 @@ export type AppConnection = {
   status: 'connected' | 'disconnected'
   connected_at: string
   connected_by: string
+  config_json: ConnectionConfig | null
 }
 
 export type AppWithConnection = {
@@ -25,7 +32,10 @@ export type AppWithConnection = {
   description: string
   icon_url: string | null
   display_order: number
+  composio_toolkit_slug: string | null
   connected: boolean
+  account_label: string | null
+  is_available: boolean
 }
 
 export const appsKey = (workspaceId: string | undefined) => ['apps', workspaceId] as const
@@ -38,11 +48,13 @@ export function useApps(workspaceId: string | undefined) {
       const [catalogRes, connectionsRes] = await Promise.all([
         insforge.database
           .from('apps_catalog')
-          .select('slug, name, description, icon_url, oauth_provider, display_order')
+          .select(
+            'slug, name, description, icon_url, composio_toolkit_slug, display_order',
+          )
           .order('display_order', { ascending: true }),
         insforge.database
           .from('app_connections')
-          .select('id, workspace_id, app_slug, status, connected_at, connected_by')
+          .select('id, workspace_id, app_slug, status, connected_at, connected_by, config_json')
           .eq('workspace_id', workspaceId!),
       ])
 
@@ -51,18 +63,24 @@ export function useApps(workspaceId: string | undefined) {
 
       const catalog = (catalogRes.data ?? []) as App[]
       const connections = (connectionsRes.data ?? []) as AppConnection[]
-      const connectedSet = new Set(
-        connections.filter((c) => c.status === 'connected').map((c) => c.app_slug),
+      const bySlug = new Map(
+        connections.filter((c) => c.status === 'connected').map((c) => [c.app_slug, c]),
       )
 
-      return catalog.map((app) => ({
-        slug: app.slug,
-        name: app.name,
-        description: app.description,
-        icon_url: app.icon_url,
-        display_order: app.display_order,
-        connected: connectedSet.has(app.slug),
-      }))
+      return catalog.map((app) => {
+        const conn = bySlug.get(app.slug)
+        return {
+          slug: app.slug,
+          name: app.name,
+          description: app.description,
+          icon_url: app.icon_url,
+          display_order: app.display_order,
+          composio_toolkit_slug: app.composio_toolkit_slug,
+          connected: !!conn,
+          account_label: conn?.config_json?.account_label ?? null,
+          is_available: false,
+        }
+      })
     },
   })
 }
