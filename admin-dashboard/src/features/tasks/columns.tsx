@@ -13,6 +13,7 @@ import {
   Lightbulb,
   MoreHorizontal,
   Pencil,
+  Send,
   Sparkles,
   Trash2,
   XCircle,
@@ -37,6 +38,8 @@ export type TaskRowActions = {
   onEdit: (task: Task) => void
   onDuplicate: (task: Task) => void
   onDelete: (task: Task) => void
+  onShareToSlack: (task: Task) => void
+  slackConnected: boolean
 }
 
 type StatusMeta = { label: string; icon: LucideIcon; className: string }
@@ -288,6 +291,14 @@ export function buildColumns(actions: TaskRowActions): ColumnDef<Task>[] {
                 <DropdownMenuItem onClick={() => actions.onDuplicate(task)}>
                   <Copy className="h-4 w-4" />
                   Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => actions.onShareToSlack(task)}
+                  disabled={!actions.slackConnected}
+                >
+                  <Send className="h-4 w-4" />
+                  {actions.slackConnected ? 'Send to Slack' : 'Send to Slack (connect first)'}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
