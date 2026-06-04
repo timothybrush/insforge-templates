@@ -54,8 +54,8 @@
   {
     "slug": "ai-pdf-chatbot",
     "name": "AI Notebook",
-    "description": "Open-source NotebookLM for students. Drop PDFs into workspaces and get auto-generated mindmaps, flashcards, two-host podcast summaries, and RAG chat that highlights cited passages inside the source PDF.",
-    "category": "ai",
+    "description": "An open-source thinking partner for your PDFs. Grounded in your own sources, with auto-generated mindmaps, spaced-repetition flashcards, two-host audio overviews, and RAG chat that highlights cited passages inside the source PDF. Self-hosted, your data, your model.",
+    "category": "AI",
     "framework": "nextjs",
     "features": ["RAG", "react-pdf", "OpenAI TTS", "Better Auth"],
     "tags": ["pdf", "study-tool", "notebooklm", "rag", "flashcards", "pgvector"],
