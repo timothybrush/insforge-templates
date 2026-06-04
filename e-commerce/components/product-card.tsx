@@ -32,7 +32,7 @@ export function ProductCard({
           />
         ) : null}
         {showWishlist ? (
-          <div className="absolute right-3 top-3" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+          <div className="absolute right-3 top-3">
             <WishlistButton
               productId={product.id}
               initialInWishlist={inWishlist}

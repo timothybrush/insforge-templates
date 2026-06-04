@@ -18,7 +18,9 @@ export function WishlistButton({
   const [optimistic, setOptimistic] = useOptimistic(initialInWishlist);
   const [, startTransition] = useTransition();
 
-  function handleClick() {
+  function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
     startTransition(async () => {
       const next = !optimistic;
       setOptimistic(next);

@@ -47,10 +47,7 @@ export default async function WishlistPage() {
                           sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw"
                           className="object-cover"
                         />
-                        <div
-                          className="absolute right-3 top-3"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        >
+                        <div className="absolute right-3 top-3">
                           <WishlistButton
                             productId={item.product_id}
                             initialInWishlist
