@@ -20,6 +20,7 @@ async function connectComposio(args: {
 
   try {
     const { data: initData, error: initErr } = await insforge.functions.invoke('apps-connect', {
+      method: 'POST',
       body: { app_slug: args.appSlug, workspace_id: args.workspaceId },
     })
     if (initErr) throw new Error(initErr.message ?? 'Failed to start authorization')
@@ -37,7 +38,7 @@ async function connectComposio(args: {
       await sleep(POLL_INTERVAL_MS)
 
       const { data: pollData, error: pollErr } = await insforge.functions.invoke('apps-poll', {
-        method: 'GET',
+        method: 'POST',
         body: {
           request_id,
           app_slug: args.appSlug,

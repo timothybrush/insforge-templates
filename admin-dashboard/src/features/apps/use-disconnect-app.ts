@@ -15,6 +15,7 @@ export function useDisconnectApp(workspaceId: string | undefined) {
         throw new Error('Native integrations are managed in the InsForge dashboard')
       }
       const { error } = await insforge.functions.invoke('apps-disconnect', {
+        method: 'POST',
         body: { app_slug: app.slug, workspace_id: workspaceId },
       })
       if (error) throw new Error(error.message ?? 'Disconnect failed')

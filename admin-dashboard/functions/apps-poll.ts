@@ -2,7 +2,7 @@ import { createClient } from 'npm:@insforge/sdk'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
@@ -19,7 +19,7 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
   }
-  if (req.method !== 'GET') return err(405, 'method_not_allowed')
+  if (req.method !== 'POST') return err(405, 'method_not_allowed')
 
   const authHeader = req.headers.get('Authorization')
   const userToken = authHeader ? authHeader.replace('Bearer ', '') : null
@@ -33,10 +33,13 @@ export default async function handler(req: Request): Promise<Response> {
   const { data: userData } = await client.auth.getCurrentUser()
   if (!userData?.user?.id) return err(401, 'unauthorized')
 
-  const url = new URL(req.url)
-  const request_id = url.searchParams.get('request_id')
-  const app_slug = url.searchParams.get('app_slug')
-  const workspace_id = url.searchParams.get('workspace_id')
+  let body: { request_id?: string; app_slug?: string; workspace_id?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return err(400, 'invalid_json')
+  }
+  const { request_id, app_slug, workspace_id } = body
   if (!request_id || !app_slug || !workspace_id) return err(400, 'missing_fields')
 
   const composioApiKey = Deno.env.get('COMPOSIO_API_KEY')
@@ -51,22 +54,30 @@ export default async function handler(req: Request): Promise<Response> {
   const account = (await res.json()) as {
     id: string
     status: string
+    word_id?: string
     data?: Record<string, unknown>
     created_at?: string
   }
 
-  if (account.status === 'INITIATED') return json(200, { status: 'pending' })
+  const FAILED_STATES = ['FAILED', 'EXPIRED', 'INACTIVE', 'DELETED']
   if (account.status !== 'ACTIVE') {
-    return json(200, { status: 'failed', detail: account.status })
+    if (FAILED_STATES.includes(account.status)) {
+      return json(200, { status: 'failed', detail: account.status })
+    }
+    return json(200, { status: 'pending', detail: account.status })
   }
 
   const dataObj = (account.data ?? {}) as Record<string, unknown>
+  const extraToken = (dataObj.extra_token_data as Record<string, unknown> | undefined) ?? {}
+  const team = (extraToken.team as { name?: string } | undefined) ?? {}
   const account_label =
     (dataObj.account_label as string | undefined) ??
     (dataObj.user_email as string | undefined) ??
     (dataObj.email as string | undefined) ??
     (dataObj.login as string | undefined) ??
     (dataObj.name as string | undefined) ??
+    team.name ??
+    account.word_id ??
     null
 
   const { error: upsertErr } = await client.database

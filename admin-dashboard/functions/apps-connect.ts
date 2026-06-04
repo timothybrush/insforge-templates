@@ -60,8 +60,8 @@ export default async function handler(req: Request): Promise<Response> {
   const composioApiKey = Deno.env.get('COMPOSIO_API_KEY')
   if (!composioApiKey) return err(500, 'composio_api_key_missing')
 
-  const initRes = await fetch(
-    'https://backend.composio.dev/api/v3/connected_accounts/initiate',
+  const linkRes = await fetch(
+    'https://backend.composio.dev/api/v3/connected_accounts/link',
     {
       method: 'POST',
       headers: {
@@ -75,18 +75,17 @@ export default async function handler(req: Request): Promise<Response> {
     },
   )
 
-  if (!initRes.ok) {
-    const text = await initRes.text()
-    return err(502, 'composio_initiate_failed', text)
+  if (!linkRes.ok) {
+    const text = await linkRes.text()
+    return err(502, 'composio_link_failed', text)
   }
-  const init = (await initRes.json()) as {
-    id: string
-    redirect_url?: string
-    redirectUrl?: string
+  const link = (await linkRes.json()) as {
+    connected_account_id: string
+    redirect_url: string
   }
 
   return json(200, {
-    request_id: init.id,
-    redirect_url: init.redirect_url ?? init.redirectUrl,
+    request_id: link.connected_account_id,
+    redirect_url: link.redirect_url,
   })
 }
