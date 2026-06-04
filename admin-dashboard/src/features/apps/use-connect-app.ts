@@ -5,7 +5,6 @@ import { appsKey, type AppWithConnection } from './use-apps'
 
 const POLL_INTERVAL_MS = 1500
 const POLL_DEADLINE_MS = 120_000
-const OSS_BASE_URL = import.meta.env.VITE_INSFORGE_OSS_URL ?? 'https://app.insforge.dev'
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -74,20 +73,11 @@ export function useConnectApp(workspaceId: string | undefined) {
   return useMutation({
     mutationFn: async ({ app }: ConnectArgs): Promise<void> => {
       if (!workspaceId) throw new Error('No active workspace')
-
-      if (app.integration_kind === 'insforge_native') {
-        if (!app.oss_dashboard_path) throw new Error('No dashboard path for this app')
-        window.open(`${OSS_BASE_URL}${app.oss_dashboard_path}`, '_blank', 'noopener,noreferrer')
-        return
-      }
-
       await connectComposio({ appSlug: app.slug, workspaceId })
     },
     onSuccess: (_data, { app }) => {
-      if (app.integration_kind === 'composio') {
-        toast.success(`${app.name} connected`)
-        void qc.invalidateQueries({ queryKey: appsKey(workspaceId) })
-      }
+      toast.success(`${app.name} connected`)
+      void qc.invalidateQueries({ queryKey: appsKey(workspaceId) })
     },
     onError: (err: Error) => toast.error(err.message),
   })

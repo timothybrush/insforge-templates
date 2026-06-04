@@ -27,7 +27,7 @@ A polished, end-to-end admin dashboard starter built with Vite, TanStack Router/
 
 Demo: [admindashboard.insforge.site](https://admindashboard.insforge.site)
 
-Sign up or sign in to get a personal workspace, then explore. Every page is hooked to live InsForge data. The Apps page renders out of the box with Stripe and OpenRouter wired to the InsForge dashboard; the seven Composio-backed integrations (GitHub, Slack, Notion, Discord, Figma, Linear, Vercel) appear as "Setup required" until you provision Composio (see [Connecting third-party apps](#connecting-third-party-apps)).
+Sign up or sign in to get a personal workspace, then explore. Every page is hooked to live InsForge data. The Apps page lists seven Composio-backed integrations (Slack, GitHub, Notion, Discord, Figma, Linear, Vercel) — once Composio is provisioned (see [Connecting third-party apps](#connecting-third-party-apps)) you can OAuth into the chosen workspace and, from `/tasks`, share any row to a Slack channel with two clicks.
 
 ---
 
@@ -144,14 +144,11 @@ admin-dashboard/
 
 ## Connecting third-party apps
 
-The `/apps` page lists every integration available to a workspace. Two kinds:
-
-- **InsForge-native** (Stripe, OpenRouter) — configured in the InsForge dashboard. The card opens the corresponding dashboard page in a new tab.
-- **Composio-backed** (GitHub, Notion, Slack, Discord, Figma, Linear, Vercel) — connected per workspace via Composio's hosted OAuth.
+The `/apps` page lists seven Composio-backed integrations (Slack, GitHub, Notion, Discord, Figma, Linear, Vercel), each connected per workspace via Composio's hosted OAuth.
 
 ### Default behavior without Composio
 
-Out of the box, the `/apps` page works with zero third-party setup: Stripe and OpenRouter cards deep-link to the InsForge dashboard, and the seven Composio cards render with a disabled **Connect** button and a "Setup required" label. A banner at the top points to this section. Follow the steps below to switch any of the seven on.
+Out of the box, the `/apps` page renders all seven cards with a disabled **Connect** button and a "Coming soon" label. A banner at the top points to this section. Follow the steps below to switch any of the seven on.
 
 The detection is per-toolkit: only the ones whose `COMPOSIO_AUTH_CONFIG_*` secret you provision become connectable. The rest stay disabled.
 
@@ -172,12 +169,15 @@ The detection is per-toolkit: only the ones whose `COMPOSIO_AUTH_CONFIG_*` secre
    npx @insforge/cli secrets add COMPOSIO_AUTH_CONFIG_VERCEL  ac_xxx
    ```
 
-4. Deploy the three edge functions (already shipped under `functions/`):
+4. Deploy the six edge functions (already shipped under `functions/`):
 
    ```bash
-   npx @insforge/cli functions deploy apps-connect    --file ./functions/apps-connect.ts
-   npx @insforge/cli functions deploy apps-poll       --file ./functions/apps-poll.ts
-   npx @insforge/cli functions deploy apps-disconnect --file ./functions/apps-disconnect.ts
+   npx @insforge/cli functions deploy apps-config             --file ./functions/apps-config.ts
+   npx @insforge/cli functions deploy apps-connect            --file ./functions/apps-connect.ts
+   npx @insforge/cli functions deploy apps-poll               --file ./functions/apps-poll.ts
+   npx @insforge/cli functions deploy apps-disconnect         --file ./functions/apps-disconnect.ts
+   npx @insforge/cli functions deploy apps-slack-list-channels --file ./functions/apps-slack-list-channels.ts
+   npx @insforge/cli functions deploy apps-slack-send-task    --file ./functions/apps-slack-send-task.ts
    ```
 
 Composio routes its OAuth callback to its own domain — you do **not** need to add any URLs to `insforge.toml`. You do need to allow popups in your browser; the connect flow opens one synchronously when the user clicks **Connect**.
@@ -190,7 +190,8 @@ Connections are scoped per workspace: the same workspace user_id is passed to Co
 
 - **Rebrand** — swap the app name, colors, and icon set. Tailwind CSS variables in `src/styles/globals.css` drive the entire palette; chart colors live there too.
 - **Add a page** — drop a new file under `src/routes/_authenticated/` and add a sidebar entry in `src/components/layout/sidebar-nav.ts`. TanStack Router picks it up on next build.
-- **Add or change Apps integrations** — see [Connecting third-party apps](#connecting-third-party-apps) below for the Composio + InsForge-native split. Add a new card by inserting a row into `apps_catalog` (set `integration_kind` and either `composio_toolkit_slug` for Composio toolkits or extend the `OSS_DEEP_LINKS` map in `src/features/apps/use-apps.ts` for native deep links).
+- **Add or change Apps integrations** — see [Connecting third-party apps](#connecting-third-party-apps) above. Add a new card by inserting a row into `apps_catalog` with the matching `composio_toolkit_slug`, then add the corresponding `COMPOSIO_AUTH_CONFIG_<TOOLKIT>` secret.
+- **Send-to-Slack actions** — `functions/apps-slack-send-task.ts` formats and pushes a task to a chosen channel. Mirror the pattern to wire other outbound actions (post to Discord, open a GitHub issue, etc.) on top of Composio's tool execute API.
 - **Email invitations** — V1 produces a copyable link. To email instead, wire `insforge.emails.send()` in `src/features/users/use-invitations.ts`.
 
 ---

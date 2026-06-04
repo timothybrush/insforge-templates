@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -56,7 +56,6 @@ export function AppsGrid({
       {apps.map((app) => {
         const connectPending = isConnectPending(app.slug)
         const disconnectPending = isDisconnectPending(app.slug)
-        const isNative = app.integration_kind === 'insforge_native'
 
         return (
           <Card key={app.slug} className="relative flex flex-col">
@@ -85,22 +84,7 @@ export function AppsGrid({
             </CardHeader>
 
             <CardContent className="mt-auto flex items-center justify-between gap-3 pt-0">
-              {isNative ? (
-                <>
-                  <span className="text-xs text-muted-foreground">
-                    Managed in InsForge dashboard
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onConnect(app)}
-                    aria-label={`Configure ${app.name} in dashboard`}
-                  >
-                    Configure
-                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-                  </Button>
-                </>
-              ) : app.connected ? (
+              {app.connected ? (
                 <>
                   <span
                     className="truncate text-xs text-muted-foreground"

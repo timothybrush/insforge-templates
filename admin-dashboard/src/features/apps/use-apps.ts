@@ -1,14 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { insforge } from '@/lib/insforge'
 
-export type IntegrationKind = 'composio' | 'insforge_native'
-
 export type App = {
   slug: string
   name: string
   description: string
   icon_url: string | null
-  integration_kind: IntegrationKind
   composio_toolkit_slug: string | null
   display_order: number
 }
@@ -29,20 +26,13 @@ export type AppConnection = {
   config_json: ConnectionConfig | null
 }
 
-const OSS_DEEP_LINKS: Record<string, string> = {
-  stripe: '/payments',
-  openrouter: '/ai',
-}
-
 export type AppWithConnection = {
   slug: string
   name: string
   description: string
   icon_url: string | null
   display_order: number
-  integration_kind: IntegrationKind
   composio_toolkit_slug: string | null
-  oss_dashboard_path: string | null
   connected: boolean
   account_label: string | null
   is_available: boolean
@@ -59,7 +49,7 @@ export function useApps(workspaceId: string | undefined) {
         insforge.database
           .from('apps_catalog')
           .select(
-            'slug, name, description, icon_url, integration_kind, composio_toolkit_slug, display_order',
+            'slug, name, description, icon_url, composio_toolkit_slug, display_order',
           )
           .order('display_order', { ascending: true }),
         insforge.database
@@ -85,12 +75,10 @@ export function useApps(workspaceId: string | undefined) {
           description: app.description,
           icon_url: app.icon_url,
           display_order: app.display_order,
-          integration_kind: app.integration_kind,
           composio_toolkit_slug: app.composio_toolkit_slug,
-          oss_dashboard_path: OSS_DEEP_LINKS[app.slug] ?? null,
           connected: !!conn,
           account_label: conn?.config_json?.account_label ?? null,
-          is_available: app.integration_kind === 'insforge_native',
+          is_available: false,
         }
       })
     },

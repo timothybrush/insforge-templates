@@ -20,16 +20,14 @@ export function AppsPage() {
   const enrichedApps = useMemo(() => {
     const toolkits = new Set(appsConfig?.configured_toolkits ?? [])
     return apps.map((app) => {
-      if (app.integration_kind === 'insforge_native') return app
       const slug = app.composio_toolkit_slug
       const available = !!appsConfig?.composio_enabled && !!slug && toolkits.has(slug)
       return { ...app, is_available: available }
     })
   }, [apps, appsConfig])
 
-  const hasComposioApp = enrichedApps.some((a) => a.integration_kind === 'composio')
   const showSetupBanner =
-    !isConfigLoading && hasComposioApp && !appsConfig?.composio_enabled
+    !isConfigLoading && apps.length > 0 && !appsConfig?.composio_enabled
 
   const isConnectPending = (slug: string) =>
     connect.isPending && connect.variables?.app.slug === slug
@@ -53,8 +51,8 @@ export function AppsPage() {
           <div className="flex-1">
             <p className="font-medium">Third-party integrations need Composio</p>
             <p className="text-muted-foreground">
-              Stripe and OpenRouter work out of the box. To enable GitHub, Slack, Notion and
-              the other OAuth apps, provision Composio secrets on this project.
+              Provision Composio secrets on this project to enable GitHub, Slack, Notion,
+              and the other OAuth apps.
             </p>
             <a
               href={COMPOSIO_SETUP_URL}
