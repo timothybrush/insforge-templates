@@ -528,22 +528,20 @@ begin
   end if;
 
   update public.products p
-  set inventory_count = p.inventory_count - oi.quantity,
+  set inventory_count = greatest(0, p.inventory_count - oi.quantity),
       updated_at = now()
   from public.order_items oi
   where oi.order_id = v_order_id
     and oi.variant_id is null
-    and p.id = oi.product_id
-    and p.inventory_count >= oi.quantity;
+    and p.id = oi.product_id;
 
   update public.product_variants pv
-  set inventory_count = pv.inventory_count - oi.quantity,
+  set inventory_count = greatest(0, pv.inventory_count - oi.quantity),
       updated_at = now()
   from public.order_items oi
   where oi.order_id = v_order_id
     and oi.variant_id is not null
-    and pv.id = oi.variant_id
-    and pv.inventory_count >= oi.quantity;
+    and pv.id = oi.variant_id;
 
   select id into v_cart_id from public.shopping_carts
   where user_id = v_user_id and status = 'active'
