@@ -29,7 +29,9 @@ export default async function ProductDetailPage({
 
   const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
   const wishlistPromise = viewerId && authState.accessToken
-    ? getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId })
+    ? getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId }).catch(
+        () => new Set<string>(),
+      )
     : Promise.resolve(new Set<string>());
 
   const [wishlistIds, allRelated] = await Promise.all([

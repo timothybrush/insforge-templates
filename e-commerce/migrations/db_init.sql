@@ -433,9 +433,9 @@ begin
 
   select email into v_email from auth.users where id = v_user_id;
 
-  v_shipping := case when v_subtotal >= 20000 then 0 else 1200 end;
-  v_tax := floor(v_subtotal * 0.08)::integer;
-  v_total := v_subtotal + v_shipping + v_tax;
+  v_shipping := 0;
+  v_tax := 0;
+  v_total := v_subtotal;
 
   insert into public.orders (
     user_id, status, payment_status, fulfillment_status, email,
@@ -475,97 +475,9 @@ begin
 end;
 $$;
 
--- finalize_order is called by the user's session after Stripe redirects them back
--- to the success page. It expects auth.uid() to be the buyer's user id and will
--- raise if called without an authenticated context (e.g. a Stripe webhook server-
--- to-server call). The success page reads payments.checkout_sessions.payment_status
--- to verify payment before invoking this RPC.
-create or replace function public.finalize_order(
-  p_order_id uuid,
-  p_stripe_session_id text,
-  p_payment_intent_id text default null,
-  p_discount_code text default null,
-  p_discount_cents integer default 0
-)
-returns public.orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user_id uuid := auth.uid();
-  v_order public.orders%rowtype;
-  v_cart_id uuid;
-begin
-  if v_user_id is null then
-    raise exception 'You must be signed in to finalize an order.';
-  end if;
+drop function if exists public.finalize_order(uuid, text, text, text, integer);
 
-  select * into v_order from public.orders
-  where id = p_order_id and user_id = v_user_id for update;
-
-  if not found then
-    raise exception 'Order not found.';
-  end if;
-
-  if v_order.payment_status = 'paid' then
-    return v_order;
-  end if;
-
-  update public.orders set
-    status = 'confirmed',
-    payment_status = 'paid',
-    fulfillment_status = 'processing',
-    stripe_checkout_session_id = p_stripe_session_id,
-    stripe_payment_intent_id = p_payment_intent_id,
-    discount_code = p_discount_code,
-    discount_cents = coalesce(p_discount_cents, 0),
-    updated_at = now()
-  where id = p_order_id
-  returning * into v_order;
-
-  update public.products p
-  set inventory_count = greatest(0, p.inventory_count - oi.quantity),
-      updated_at = now()
-  from public.order_items oi
-  where oi.order_id = p_order_id
-    and oi.variant_id is null
-    and p.id = oi.product_id;
-
-  update public.product_variants pv
-  set inventory_count = greatest(0, pv.inventory_count - oi.quantity),
-      updated_at = now()
-  from public.order_items oi
-  where oi.order_id = p_order_id
-    and oi.variant_id is not null
-    and pv.id = oi.variant_id;
-
-  select id into v_cart_id from public.shopping_carts
-  where user_id = v_user_id and status = 'active'
-  order by updated_at desc limit 1;
-
-  if v_cart_id is not null then
-    update public.shopping_carts set
-      status = 'converted',
-      updated_at = now()
-    where id = v_cart_id;
-  end if;
-
-  insert into public.order_status_events (order_id, user_id, event_type, message)
-  values (p_order_id, v_user_id, 'payment_succeeded', 'Payment confirmed via Stripe');
-
-  insert into public.order_status_events (order_id, user_id, event_type, message)
-  values (p_order_id, v_user_id, 'fulfillment_processing', 'Order is being prepared');
-
-  return v_order;
-end;
-$$;
-
--- handle_payment_succeeded runs from the InsForge webhook projection.
--- When payments.payment_history receives a succeeded one_time_payment row,
--- the trigger looks up the matching checkout_sessions.metadata.order_id and
--- promotes the app's public.orders row to paid + confirmed + processing,
--- decrements inventory, converts the cart, and writes timeline events.
+-- Fulfills the order when the Stripe webhook lands a succeeded payment.
 create or replace function public.handle_payment_succeeded()
 returns trigger
 language plpgsql
@@ -585,15 +497,20 @@ begin
     return NEW;
   end if;
 
-  select (cs.metadata->>'order_id')::uuid
-  into v_order_id
-  from payments.checkout_sessions cs
-  where cs.stripe_checkout_session_id = NEW.stripe_checkout_session_id
-  limit 1;
+  declare v_order_id_text text;
+  begin
+    select cs.metadata->>'order_id'
+    into v_order_id_text
+    from payments.checkout_sessions cs
+    where cs.stripe_checkout_session_id = NEW.stripe_checkout_session_id
+    limit 1;
 
-  if v_order_id is null then
-    return NEW;
-  end if;
+    if v_order_id_text is null or v_order_id_text !~ '^[0-9a-fA-F-]{36}$' then
+      return NEW;
+    end if;
+
+    v_order_id := v_order_id_text::uuid;
+  end;
 
   update public.orders
   set status = 'confirmed',
@@ -611,20 +528,22 @@ begin
   end if;
 
   update public.products p
-  set inventory_count = greatest(0, p.inventory_count - oi.quantity),
+  set inventory_count = p.inventory_count - oi.quantity,
       updated_at = now()
   from public.order_items oi
   where oi.order_id = v_order_id
     and oi.variant_id is null
-    and p.id = oi.product_id;
+    and p.id = oi.product_id
+    and p.inventory_count >= oi.quantity;
 
   update public.product_variants pv
-  set inventory_count = greatest(0, pv.inventory_count - oi.quantity),
+  set inventory_count = pv.inventory_count - oi.quantity,
       updated_at = now()
   from public.order_items oi
   where oi.order_id = v_order_id
     and oi.variant_id is not null
-    and pv.id = oi.variant_id;
+    and pv.id = oi.variant_id
+    and pv.inventory_count >= oi.quantity;
 
   select id into v_cart_id from public.shopping_carts
   where user_id = v_user_id and status = 'active'

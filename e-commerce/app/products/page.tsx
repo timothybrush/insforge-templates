@@ -15,18 +15,22 @@ export default async function ProductsPage({
   searchParams: Promise<{ category?: string; search?: string }>;
 }) {
   const params = await searchParams;
-  const authState = await getCurrentAuthState();
-  const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
-  const wishlistPromise = viewerId && authState.accessToken
-    ? getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId })
-    : Promise.resolve(new Set<string>());
+  const authPromise = getCurrentAuthState();
+  const wishlistPromise = authPromise.then((state) =>
+    state.viewer.isAuthenticated && state.viewer.id && state.accessToken
+      ? getWishlistProductIds({ accessToken: state.accessToken, userId: state.viewer.id }).catch(
+          () => new Set<string>(),
+        )
+      : new Set<string>(),
+  );
 
-  const [categories, products, wishlistIds] = await Promise.all([
+  const [authState, categories, products, wishlistIds] = await Promise.all([
+    authPromise,
     getCategories(),
     getProducts({ category: params.category, search: params.search }),
     wishlistPromise,
   ]);
-  const showWishlist = !!viewerId;
+  const showWishlist = authState.viewer.isAuthenticated && !!authState.viewer.id;
   const activeCategory = params.category ?? null;
 
   function buildCatalogHref(category?: string) {

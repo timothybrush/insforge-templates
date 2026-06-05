@@ -36,7 +36,14 @@ export default async function WishlistPage() {
           ) : (
             <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => (
-                <li key={item.id} className="glass-panel overflow-hidden">
+                <li key={item.id} className="glass-panel relative overflow-hidden">
+                  <div className="absolute right-3 top-3 z-10">
+                    <WishlistButton
+                      productId={item.product_id}
+                      initialInWishlist
+                      size="sm"
+                    />
+                  </div>
                   <Link href={`/products/${item.product?.slug ?? ''}`} className="block">
                     {item.product?.image_url ? (
                       <div className="relative aspect-[4/5] overflow-hidden rounded-t-[24px] bg-muted/60">
@@ -47,13 +54,6 @@ export default async function WishlistPage() {
                           sizes="(min-width: 1280px) 25vw, (min-width: 768px) 50vw, 100vw"
                           className="object-cover"
                         />
-                        <div className="absolute right-3 top-3">
-                          <WishlistButton
-                            productId={item.product_id}
-                            initialInWishlist
-                            size="sm"
-                          />
-                        </div>
                       </div>
                     ) : null}
                     <div className="p-5">

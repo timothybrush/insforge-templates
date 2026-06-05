@@ -16,7 +16,7 @@ export function WishlistButton({
   size?: 'sm' | 'md';
 }) {
   const [optimistic, setOptimistic] = useOptimistic(initialInWishlist);
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -37,6 +37,7 @@ export function WishlistButton({
     <button
       type="button"
       onClick={handleClick}
+      disabled={isPending}
       aria-pressed={optimistic}
       aria-label={optimistic ? 'Remove from wishlist' : 'Add to wishlist'}
       className={cn(

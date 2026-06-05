@@ -11,19 +11,23 @@ import { getCategories, getFeaturedProducts, getProducts, getWishlistProductIds 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const authState = await getCurrentAuthState();
-  const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
-  const wishlistPromise = viewerId && authState.accessToken
-    ? getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId })
-    : Promise.resolve(new Set<string>());
+  const authPromise = getCurrentAuthState();
+  const wishlistPromise = authPromise.then((state) =>
+    state.viewer.isAuthenticated && state.viewer.id && state.accessToken
+      ? getWishlistProductIds({ accessToken: state.accessToken, userId: state.viewer.id }).catch(
+          () => new Set<string>(),
+        )
+      : new Set<string>(),
+  );
 
-  const [categories, featuredProducts, latestProducts, wishlistIds] = await Promise.all([
+  const [authState, categories, featuredProducts, latestProducts, wishlistIds] = await Promise.all([
+    authPromise,
     getCategories(),
     getFeaturedProducts(),
     getProducts(),
     wishlistPromise,
   ]);
-  const showWishlist = !!viewerId;
+  const showWishlist = authState.viewer.isAuthenticated && !!authState.viewer.id;
 
   return (
     <div className="min-h-screen">

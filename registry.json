@@ -8,7 +8,7 @@
     "features": ["Stripe Checkout", "Order Timeline", "Wishlist", "Admin Fulfillment", "shadcn/ui", "Auth"],
     "tags": ["e-commerce", "storefront", "stripe", "payments", "wishlist"],
     "cover": "assets/covers/e-commerce.png",
-    "demo_url": "https://demoecommerce.insforge.site/",
+    "demo_url": "https://ecommerce-stripe.insforge.site/",
     "author": "InsForge",
     "added_at": "2026-05-20"
   },
