@@ -269,7 +269,10 @@ alter table public.orders
   add column if not exists stripe_checkout_session_id text,
   add column if not exists stripe_payment_intent_id text,
   add column if not exists discount_code text,
-  add column if not exists discount_cents integer not null default 0;
+  add column if not exists discount_cents integer not null default 0,
+  add column if not exists tracking_number text,
+  add column if not exists shipped_at timestamptz,
+  add column if not exists delivered_at timestamptz;
 
 do $$
 begin
@@ -1433,3 +1436,88 @@ join public.product_option_values pov
   on pov.option_id = po.id
  and pov.label = seed.label
 on conflict (variant_id, option_value_id) do nothing;
+
+-- Admin-only fulfillment transitions. Both RPCs check current_user_is_admin()
+-- inside the function so the SDK call can be made under the user's session
+-- token without bypassing RLS.
+create or replace function public.mark_order_shipped(
+  p_order_id uuid,
+  p_tracking_number text default null
+)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only project admins can mark orders as shipped.';
+  end if;
+
+  update public.orders
+  set fulfillment_status = 'shipped',
+      tracking_number = coalesce(p_tracking_number, tracking_number),
+      shipped_at = coalesce(shipped_at, now()),
+      updated_at = now()
+  where id = p_order_id
+    and payment_status = 'paid'
+    and fulfillment_status in ('processing', 'unfulfilled')
+  returning * into v_order;
+
+  if v_order.id is null then
+    raise exception 'Order not found or not eligible to ship.';
+  end if;
+
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values (
+    v_order.id,
+    v_order.user_id,
+    'fulfillment_shipped',
+    case
+      when p_tracking_number is not null then 'Shipped, tracking ' || p_tracking_number
+      else 'Order shipped'
+    end
+  );
+
+  return v_order;
+end;
+$$;
+
+create or replace function public.mark_order_delivered(p_order_id uuid)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only project admins can mark orders as delivered.';
+  end if;
+
+  update public.orders
+  set fulfillment_status = 'delivered',
+      delivered_at = coalesce(delivered_at, now()),
+      updated_at = now()
+  where id = p_order_id
+    and fulfillment_status = 'shipped'
+  returning * into v_order;
+
+  if v_order.id is null then
+    raise exception 'Order not found or not yet shipped.';
+  end if;
+
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values (
+    v_order.id,
+    v_order.user_id,
+    'fulfillment_delivered',
+    'Order delivered'
+  );
+
+  return v_order;
+end;
+$$;

@@ -11,6 +11,8 @@ import {
   createCheckoutSessionForOrder,
   deleteSavedAddress,
   getOrderPaymentState,
+  markOrderDelivered,
+  markOrderShipped,
   placeOrderForUser,
   removeCartItem,
   setDefaultSavedAddress,
@@ -145,4 +147,25 @@ export async function pollOrderPaymentAction(payload: { orderId: string }) {
     revalidatePath(`/account/orders/${payload.orderId}`);
   }
   return result;
+}
+
+export async function markOrderShippedAction(payload: {
+  orderId: string;
+  trackingNumber?: string;
+}) {
+  const { accessToken } = await requireSession();
+  await markOrderShipped({
+    accessToken,
+    orderId: payload.orderId,
+    trackingNumber: payload.trackingNumber?.trim() || null,
+  });
+  revalidatePath('/account/orders');
+  revalidatePath(`/account/orders/${payload.orderId}`);
+}
+
+export async function markOrderDeliveredAction(payload: { orderId: string }) {
+  const { accessToken } = await requireSession();
+  await markOrderDelivered({ accessToken, orderId: payload.orderId });
+  revalidatePath('/account/orders');
+  revalidatePath(`/account/orders/${payload.orderId}`);
 }

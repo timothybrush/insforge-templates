@@ -191,6 +191,9 @@ export interface Order {
   placed_at: string;
   created_at: string;
   updated_at: string;
+  tracking_number?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_payment_intent_id?: string | null;
   discount_code?: string | null;

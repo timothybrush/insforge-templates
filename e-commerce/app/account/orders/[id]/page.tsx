@@ -2,10 +2,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import { AdminOrderActions } from '@/components/admin-order-actions';
 import { OrderTimeline } from '@/components/order-timeline';
 import { SiteHeader } from '@/components/site-header';
 import { requireAuthenticatedSession } from '@/lib/auth-session';
-import { getOrderById, getOrderTimeline } from '@/lib/store';
+import { getOrderById, getOrderTimeline, isCurrentUserAdmin } from '@/lib/store';
 import { formatCurrency, formatShortDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -27,9 +28,10 @@ export default async function OrderDetailPage({
   const { id } = await params;
   const { viewer, accessToken } = await requireAuthenticatedSession();
 
-  const [order, timeline] = await Promise.all([
+  const [order, timeline, isAdmin] = await Promise.all([
     getOrderById({ accessToken, userId: viewer.id, isAdmin: false, id }),
     getOrderTimeline({ accessToken, orderId: id }),
+    isCurrentUserAdmin(accessToken),
   ]);
 
   if (!order) {
@@ -68,6 +70,14 @@ export default async function OrderDetailPage({
           <h2 className="font-display text-4xl">Order status</h2>
           <OrderTimeline events={timeline} />
         </section>
+
+        {isAdmin ? (
+          <AdminOrderActions
+            orderId={order.id}
+            fulfillmentStatus={order.fulfillment_status}
+            currentTracking={order.tracking_number ?? null}
+          />
+        ) : null}
 
         <section className="grid gap-8 xl:grid-cols-[minmax(0,1.2fr)_420px]">
           <div className="space-y-5">

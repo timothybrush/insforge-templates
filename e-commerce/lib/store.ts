@@ -777,6 +777,39 @@ export async function getOrderPaymentState(args: {
     : { paid: false as const, order: order as Order };
 }
 
+export async function isCurrentUserAdmin(accessToken: string): Promise<boolean> {
+  const insforge = getInsforge(accessToken);
+  const { data, error } = await insforge.database.rpc('current_user_is_admin');
+  if (error) return false;
+  return data === true;
+}
+
+export async function markOrderShipped(args: {
+  accessToken: string;
+  orderId: string;
+  trackingNumber?: string | null;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database.rpc('mark_order_shipped', {
+    p_order_id: args.orderId,
+    p_tracking_number: args.trackingNumber ?? null,
+  });
+  assertNoDatabaseError(error, 'Unable to mark order as shipped.');
+  return data as Order;
+}
+
+export async function markOrderDelivered(args: {
+  accessToken: string;
+  orderId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database.rpc('mark_order_delivered', {
+    p_order_id: args.orderId,
+  });
+  assertNoDatabaseError(error, 'Unable to mark order as delivered.');
+  return data as Order;
+}
+
 export async function getOrders(args: {
   accessToken: string;
   userId: string;
