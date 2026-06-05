@@ -10,12 +10,14 @@ import type {
   CartItem,
   Category,
   Order,
+  OrderStatusEvent,
   Product,
   ProductOption,
   ProductOptionValue,
   ProductVariant,
   SavedAddress,
   ShoppingCart,
+  WishlistItem,
 } from '@/lib/types';
 
 type InsforgeClient = ReturnType<typeof createInsforgeServerClient>;
@@ -473,6 +475,74 @@ export async function removeCartItem(accessToken: string, itemId: string) {
   assertNoDatabaseError(error, 'Unable to remove cart item.');
 }
 
+export async function getWishlistProductIds(args: {
+  accessToken: string;
+  userId: string;
+}): Promise<Set<string>> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('wishlists')
+    .select('product_id')
+    .eq('user_id', args.userId);
+
+  assertNoDatabaseError(error, 'Unable to load wishlist.');
+  return new Set((data ?? []).map((row) => row.product_id as string));
+}
+
+export async function getWishlistWithProducts(args: {
+  accessToken: string;
+  userId: string;
+}): Promise<WishlistItem[]> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('wishlists')
+    .select('*, product:products(*)')
+    .eq('user_id', args.userId)
+    .order('created_at', { ascending: false });
+
+  assertNoDatabaseError(error, 'Unable to load wishlist.');
+  return (data ?? []) as WishlistItem[];
+}
+
+export async function addToWishlist(args: {
+  accessToken: string;
+  userId: string;
+  productId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { error } = await insforge.database
+    .from('wishlists')
+    .insert({ user_id: args.userId, product_id: args.productId });
+
+  // Tolerate the unique-constraint conflict so toggling twice doesn't blow up.
+  const errorCode = (error as { code?: string } | null)?.code;
+  const errorDetails = (error as { details?: string } | null)?.details ?? '';
+  const errorMessage = error?.message ?? '';
+  const isDuplicateKey =
+    errorCode === '23505' ||
+    errorMessage.includes('wishlists_user_product_unique') ||
+    errorDetails.includes('wishlists_user_product_unique');
+
+  if (error && !isDuplicateKey) {
+    assertNoDatabaseError(error, 'Unable to add to wishlist.');
+  }
+}
+
+export async function removeFromWishlist(args: {
+  accessToken: string;
+  userId: string;
+  productId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { error } = await insforge.database
+    .from('wishlists')
+    .delete()
+    .eq('user_id', args.userId)
+    .eq('product_id', args.productId);
+
+  assertNoDatabaseError(error, 'Unable to remove from wishlist.');
+}
+
 export async function getSavedAddresses(userId: string, accessToken: string) {
   const insforge = getInsforge(accessToken);
   const { data, error } = await insforge.database
@@ -603,6 +673,143 @@ export async function placeOrderForUser(args: {
   return data as string;
 }
 
+export async function createCheckoutSessionForOrder(args: {
+  accessToken: string;
+  userId: string;
+  userEmail: string | null;
+  orderId: string;
+  successOrigin: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+
+  const { data: order, error: orderError } = await insforge.database
+    .from('orders')
+    .select('id, total_cents, subtotal_cents, shipping_cents, tax_cents, email')
+    .eq('id', args.orderId)
+    .eq('user_id', args.userId)
+    .single();
+
+  assertNoDatabaseError(orderError, 'Unable to load order.');
+  if (!order) throw new Error('Order not found.');
+
+  const { data: items, error: itemsError } = await insforge.database
+    .from('order_items')
+    .select('product_id, variant_id, quantity, unit_price_cents, product_name')
+    .eq('order_id', args.orderId);
+
+  assertNoDatabaseError(itemsError, 'Unable to load order items.');
+  if (!items || items.length === 0) throw new Error('Order has no items.');
+
+  const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean))) as string[];
+  const variantIds = Array.from(new Set(items.map((i) => i.variant_id).filter(Boolean))) as string[];
+
+  const { data: products, error: productsError } = await insforge.database
+    .from('products')
+    .select('id, stripe_price_id')
+    .in('id', productIds);
+  assertNoDatabaseError(productsError, 'Unable to load product prices.');
+
+  const { data: variants, error: variantsError } = variantIds.length
+    ? await insforge.database
+        .from('product_variants')
+        .select('id, stripe_price_id')
+        .in('id', variantIds)
+    : { data: [], error: null };
+  assertNoDatabaseError(variantsError, 'Unable to load variant prices.');
+
+  const productPriceMap = new Map<string, string | null>(
+    (products ?? []).map((p) => [p.id, p.stripe_price_id ?? null]),
+  );
+  const variantPriceMap = new Map<string, string | null>(
+    (variants ?? []).map((v) => [v.id, v.stripe_price_id ?? null]),
+  );
+
+  const lineItems = items.map((item) => {
+    const priceId = item.variant_id
+      ? variantPriceMap.get(item.variant_id)
+      : productPriceMap.get(item.product_id);
+
+    if (!priceId) {
+      throw new Error(
+        `Missing Stripe price for "${item.product_name}". See the README "Configure Stripe payments" section for setup.`,
+      );
+    }
+
+    return { stripePriceId: priceId, quantity: item.quantity };
+  });
+
+  const { data: session, error: sessionError } = await insforge.payments.createCheckoutSession('test', {
+    mode: 'payment',
+    lineItems,
+    successUrl: `${args.successOrigin}/checkout/success?order_id=${args.orderId}&session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${args.successOrigin}/cart`,
+    subject: { type: 'user', id: args.userId },
+    customerEmail: args.userEmail ?? order.email ?? null,
+    metadata: { order_id: args.orderId },
+    idempotencyKey: `order:${args.orderId}`,
+  });
+
+  if (sessionError) throw sessionError;
+  if (!session?.checkoutSession?.url) {
+    throw new Error('Stripe checkout session was created but no URL was returned.');
+  }
+
+  return session.checkoutSession.url;
+}
+
+export async function getOrderPaymentState(args: {
+  accessToken: string;
+  userId: string;
+  orderId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { data: order, error } = await insforge.database
+    .from('orders')
+    .select('*')
+    .eq('id', args.orderId)
+    .eq('user_id', args.userId)
+    .maybeSingle();
+
+  assertNoDatabaseError(error, 'Unable to load order.');
+  if (!order) return { paid: false as const, order: null };
+  return order.payment_status === 'paid'
+    ? { paid: true as const, order: order as Order }
+    : { paid: false as const, order: order as Order };
+}
+
+export async function isCurrentUserAdmin(accessToken: string): Promise<boolean> {
+  const insforge = getInsforge(accessToken);
+  const { data, error } = await insforge.database.rpc('current_user_is_admin');
+  if (error) return false;
+  return data === true;
+}
+
+export async function markOrderShipped(args: {
+  accessToken: string;
+  orderId: string;
+  trackingNumber?: string | null;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database.rpc('mark_order_shipped', {
+    p_order_id: args.orderId,
+    p_tracking_number: args.trackingNumber ?? null,
+  });
+  assertNoDatabaseError(error, 'Unable to mark order as shipped.');
+  return data as Order;
+}
+
+export async function markOrderDelivered(args: {
+  accessToken: string;
+  orderId: string;
+}) {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database.rpc('mark_order_delivered', {
+    p_order_id: args.orderId,
+  });
+  assertNoDatabaseError(error, 'Unable to mark order as delivered.');
+  return data as Order;
+}
+
 export async function getOrders(args: {
   accessToken: string;
   userId: string;
@@ -642,4 +849,19 @@ export async function getOrderById(args: {
   const { data, error } = await query.maybeSingle();
   assertNoDatabaseError(error, 'Unable to load order.');
   return data as Order | null;
+}
+
+export async function getOrderTimeline(args: {
+  accessToken: string;
+  orderId: string;
+}): Promise<OrderStatusEvent[]> {
+  const insforge = getInsforge(args.accessToken);
+  const { data, error } = await insforge.database
+    .from('order_status_events')
+    .select('*')
+    .eq('order_id', args.orderId)
+    .order('created_at', { ascending: true });
+
+  assertNoDatabaseError(error, 'Unable to load order timeline.');
+  return (data ?? []) as OrderStatusEvent[];
 }

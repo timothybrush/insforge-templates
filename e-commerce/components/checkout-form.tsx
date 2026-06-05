@@ -3,7 +3,6 @@
 import { Loader2 } from 'lucide-react';
 import { startTransition, useState } from 'react';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 import {
   ADDRESS_FORM_FIELDS,
   createEmptyAddressFields,
@@ -15,7 +14,6 @@ import type { SavedAddress } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 
 export function CheckoutForm({ addresses }: { addresses: SavedAddress[] }) {
-  const router = useRouter();
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     addresses.find((address) => address.is_default_shipping)?.id ?? addresses[0]?.id ?? null,
   );
@@ -30,15 +28,14 @@ export function CheckoutForm({ addresses }: { addresses: SavedAddress[] }) {
 
     startTransition(async () => {
       try {
-        const { orderId } = await placeOrderAction({
+        const { checkoutUrl } = await placeOrderAction({
           addressId: useNewAddress ? undefined : selectedAddressId ?? undefined,
           address: useNewAddress ? fields : undefined,
           note: note.trim() || undefined,
         });
-        router.push(`/account/orders?placed=${orderId}`);
-        router.refresh();
+        window.location.assign(checkoutUrl);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Unable to place order.');
+        toast.error(error instanceof Error ? error.message : 'Unable to start checkout.');
         setIsPending(false);
       }
     });
@@ -119,7 +116,7 @@ export function CheckoutForm({ addresses }: { addresses: SavedAddress[] }) {
 
       <Button className="w-full sm:w-auto" disabled={isPending} type="submit">
         {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-        {isPending ? 'Placing order' : 'Place order'}
+        {isPending ? 'Redirecting to checkout' : 'Place order'}
       </Button>
     </form>
   );

@@ -218,6 +218,39 @@ create table if not exists public.order_items (
   constraint order_items_line_total_non_negative check (line_total_cents >= 0)
 );
 
+create table if not exists public.order_status_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  event_type text not null,
+  message text,
+  created_at timestamptz not null default now(),
+  constraint order_status_events_type_check check (
+    event_type in (
+      'order_placed',
+      'payment_succeeded',
+      'payment_failed',
+      'fulfillment_processing',
+      'fulfillment_shipped',
+      'fulfillment_delivered',
+      'order_cancelled',
+      'order_refunded'
+    )
+  )
+);
+
+create index if not exists order_status_events_order_idx on public.order_status_events (order_id, created_at asc);
+
+create table if not exists public.wishlists (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint wishlists_user_product_unique unique (user_id, product_id)
+);
+
+create index if not exists wishlists_user_idx on public.wishlists (user_id, created_at desc);
+
 alter table public.cart_items
   add column if not exists variant_id uuid references public.product_variants(id) on delete set null;
 
@@ -225,6 +258,33 @@ alter table public.order_items
   add column if not exists variant_id uuid references public.product_variants(id) on delete set null,
   add column if not exists variant_title text,
   add column if not exists variant_summary text;
+
+alter table public.products
+  add column if not exists stripe_price_id text;
+
+alter table public.product_variants
+  add column if not exists stripe_price_id text;
+
+alter table public.orders
+  add column if not exists stripe_checkout_session_id text,
+  add column if not exists stripe_payment_intent_id text,
+  add column if not exists discount_code text,
+  add column if not exists discount_cents integer not null default 0,
+  add column if not exists tracking_number text,
+  add column if not exists shipped_at timestamptz,
+  add column if not exists delivered_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'orders_discount_non_negative'
+      and conrelid = 'public.orders'::regclass
+  ) then
+    alter table public.orders
+      add constraint orders_discount_non_negative check (discount_cents >= 0);
+  end if;
+end $$;
 
 do $$
 begin
@@ -270,7 +330,10 @@ create index if not exists cart_items_user_idx on public.cart_items (user_id, cr
 create index if not exists saved_addresses_user_idx on public.saved_addresses (user_id, created_at desc);
 create index if not exists orders_user_created_idx on public.orders (user_id, created_at desc);
 create index if not exists orders_status_created_idx on public.orders (status, created_at desc);
+create index if not exists orders_stripe_session_idx on public.orders (stripe_checkout_session_id) where stripe_checkout_session_id is not null;
 create index if not exists order_items_order_idx on public.order_items (order_id);
+create index if not exists products_stripe_price_idx on public.products (stripe_price_id) where stripe_price_id is not null;
+create index if not exists product_variants_stripe_price_idx on public.product_variants (stripe_price_id) where stripe_price_id is not null;
 
 alter table public.cart_items
   drop constraint if exists cart_items_unique_product_per_cart;
@@ -330,31 +393,25 @@ begin
     raise exception 'You must be signed in to place an order.';
   end if;
 
-  select *
-  into v_address
+  select * into v_address
   from public.saved_addresses
-  where id = p_address_id
-    and user_id = v_user_id;
+  where id = p_address_id and user_id = v_user_id;
 
   if not found then
     raise exception 'Shipping address not found.';
   end if;
 
-  select id
-  into v_cart_id
+  select id into v_cart_id
   from public.shopping_carts
-  where user_id = v_user_id
-    and status = 'active'
-  order by updated_at desc
-  limit 1;
+  where user_id = v_user_id and status = 'active'
+  order by updated_at desc limit 1;
 
   if v_cart_id is null then
     raise exception 'No active cart found.';
   end if;
 
   if exists (
-    select 1
-    from public.cart_items ci
+    select 1 from public.cart_items ci
     join public.products p on p.id = ci.product_id
     left join public.product_variants pv on pv.id = ci.variant_id
     where ci.cart_id = v_cart_id
@@ -368,124 +425,147 @@ begin
 
   select coalesce(sum(quantity * unit_price_cents), 0)::integer
   into v_subtotal
-  from public.cart_items
-  where cart_id = v_cart_id;
+  from public.cart_items where cart_id = v_cart_id;
 
   if v_subtotal <= 0 then
     raise exception 'Your cart is empty.';
   end if;
 
-  select email
-  into v_email
-  from auth.users
-  where id = v_user_id;
+  select email into v_email from auth.users where id = v_user_id;
 
-  v_shipping := case when v_subtotal >= 20000 then 0 else 1200 end;
-  v_tax := floor(v_subtotal * 0.08)::integer;
-  v_total := v_subtotal + v_shipping + v_tax;
+  v_shipping := 0;
+  v_tax := 0;
+  v_total := v_subtotal;
 
   insert into public.orders (
-    user_id,
-    status,
-    payment_status,
-    fulfillment_status,
-    email,
-    shipping_name,
-    shipping_phone,
-    shipping_company,
-    shipping_address1,
-    shipping_address2,
-    shipping_city,
-    shipping_region,
-    shipping_postal_code,
-    shipping_country_code,
-    notes,
-    subtotal_cents,
-    shipping_cents,
-    tax_cents,
-    total_cents
+    user_id, status, payment_status, fulfillment_status, email,
+    shipping_name, shipping_phone, shipping_company,
+    shipping_address1, shipping_address2, shipping_city,
+    shipping_region, shipping_postal_code, shipping_country_code,
+    notes, subtotal_cents, shipping_cents, tax_cents, total_cents
   )
   values (
-    v_user_id,
-    'confirmed',
-    'paid',
-    'processing',
-    coalesce(v_email, ''),
-    v_address.recipient_name,
-    v_address.phone,
-    v_address.company,
-    v_address.line1,
-    v_address.line2,
-    v_address.city,
-    v_address.region,
-    v_address.postal_code,
-    v_address.country_code,
-    p_note,
-    v_subtotal,
-    v_shipping,
-    v_tax,
-    v_total
+    v_user_id, 'pending', 'pending', 'unfulfilled', coalesce(v_email, ''),
+    v_address.recipient_name, v_address.phone, v_address.company,
+    v_address.line1, v_address.line2, v_address.city,
+    v_address.region, v_address.postal_code, v_address.country_code,
+    p_note, v_subtotal, v_shipping, v_tax, v_total
   )
   returning id into v_order_id;
 
   insert into public.order_items (
-    order_id,
-    user_id,
-    product_id,
-    variant_id,
-    product_name,
-    product_slug,
-    product_image_url,
-    sku,
-    variant_title,
-    variant_summary,
-    unit_price_cents,
-    quantity,
-    line_total_cents
+    order_id, user_id, product_id, variant_id,
+    product_name, product_slug, product_image_url, sku,
+    variant_title, variant_summary, unit_price_cents, quantity, line_total_cents
   )
   select
-    v_order_id,
-    v_user_id,
-    p.id,
-    ci.variant_id,
-    p.name,
-    p.slug,
-    coalesce(pv.image_url, p.image_url),
-    coalesce(pv.sku, p.sku),
-    pv.title,
-    pv.option_summary,
-    ci.unit_price_cents,
-    ci.quantity,
+    v_order_id, v_user_id, p.id, ci.variant_id,
+    p.name, p.slug, coalesce(pv.image_url, p.image_url), coalesce(pv.sku, p.sku),
+    pv.title, pv.option_summary, ci.unit_price_cents, ci.quantity,
     ci.quantity * ci.unit_price_cents
   from public.cart_items ci
   join public.products p on p.id = ci.product_id
   left join public.product_variants pv on pv.id = ci.variant_id
   where ci.cart_id = v_cart_id;
 
-  update public.products p
-  set inventory_count = greatest(0, p.inventory_count - ci.quantity),
-      updated_at = now()
-  from public.cart_items ci
-  where ci.cart_id = v_cart_id
-    and ci.variant_id is null
-    and p.id = ci.product_id;
-
-  update public.product_variants pv
-  set inventory_count = greatest(0, pv.inventory_count - ci.quantity),
-      updated_at = now()
-  from public.cart_items ci
-  where ci.cart_id = v_cart_id
-    and ci.variant_id is not null
-    and pv.id = ci.variant_id;
-
-  update public.shopping_carts
-  set status = 'converted',
-      updated_at = now()
-  where id = v_cart_id;
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values (v_order_id, v_user_id, 'order_placed', 'Order placed, awaiting payment');
 
   return v_order_id;
 end;
 $$;
+
+drop function if exists public.finalize_order(uuid, text, text, text, integer);
+
+-- Fulfills the order when the Stripe webhook lands a succeeded payment.
+create or replace function public.handle_payment_succeeded()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, payments
+as $$
+declare
+  v_order_id uuid;
+  v_user_id uuid;
+  v_cart_id uuid;
+begin
+  if NEW.type <> 'one_time_payment' or NEW.status <> 'succeeded' then
+    return NEW;
+  end if;
+
+  if NEW.stripe_checkout_session_id is null then
+    return NEW;
+  end if;
+
+  declare v_order_id_text text;
+  begin
+    select cs.metadata->>'order_id'
+    into v_order_id_text
+    from payments.checkout_sessions cs
+    where cs.stripe_checkout_session_id = NEW.stripe_checkout_session_id
+    limit 1;
+
+    if v_order_id_text is null or v_order_id_text !~ '^[0-9a-fA-F-]{36}$' then
+      return NEW;
+    end if;
+
+    v_order_id := v_order_id_text::uuid;
+  end;
+
+  update public.orders
+  set status = 'confirmed',
+      payment_status = 'paid',
+      fulfillment_status = 'processing',
+      stripe_checkout_session_id = NEW.stripe_checkout_session_id,
+      stripe_payment_intent_id = NEW.stripe_payment_intent_id,
+      updated_at = now()
+  where id = v_order_id
+    and payment_status <> 'paid'
+  returning user_id into v_user_id;
+
+  if v_user_id is null then
+    return NEW;
+  end if;
+
+  update public.products p
+  set inventory_count = greatest(0, p.inventory_count - oi.quantity),
+      updated_at = now()
+  from public.order_items oi
+  where oi.order_id = v_order_id
+    and oi.variant_id is null
+    and p.id = oi.product_id;
+
+  update public.product_variants pv
+  set inventory_count = greatest(0, pv.inventory_count - oi.quantity),
+      updated_at = now()
+  from public.order_items oi
+  where oi.order_id = v_order_id
+    and oi.variant_id is not null
+    and pv.id = oi.variant_id;
+
+  select id into v_cart_id from public.shopping_carts
+  where user_id = v_user_id and status = 'active'
+  order by updated_at desc limit 1;
+
+  if v_cart_id is not null then
+    update public.shopping_carts set status = 'converted', updated_at = now()
+    where id = v_cart_id;
+  end if;
+
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values
+    (v_order_id, v_user_id, 'payment_succeeded', 'Payment confirmed via Stripe'),
+    (v_order_id, v_user_id, 'fulfillment_processing', 'Order is being prepared');
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists on_payment_history_succeeded on payments.payment_history;
+create trigger on_payment_history_succeeded
+after insert or update on payments.payment_history
+for each row
+execute function public.handle_payment_succeeded();
 
 drop trigger if exists categories_set_updated_at on public.categories;
 create trigger categories_set_updated_at
@@ -552,6 +632,8 @@ alter table public.cart_items enable row level security;
 alter table public.saved_addresses enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
+alter table public.order_status_events enable row level security;
+alter table public.wishlists enable row level security;
 
 drop policy if exists "categories_public_read" on public.categories;
 create policy "categories_public_read"
@@ -742,6 +824,33 @@ with check (
 drop policy if exists "order_items_admin_update" on public.order_items;
 create policy "order_items_admin_update"
 on public.order_items for update
+to authenticated
+using ((select public.current_user_is_admin()))
+with check ((select public.current_user_is_admin()));
+
+drop policy if exists "order_status_events_owner_select" on public.order_status_events;
+create policy "order_status_events_owner_select"
+on public.order_status_events for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "order_status_events_admin_all" on public.order_status_events;
+create policy "order_status_events_admin_all"
+on public.order_status_events for all
+to authenticated
+using ((select public.current_user_is_admin()))
+with check ((select public.current_user_is_admin()));
+
+drop policy if exists "wishlists_owner_all" on public.wishlists;
+create policy "wishlists_owner_all"
+on public.wishlists for all
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "wishlists_admin_all" on public.wishlists;
+create policy "wishlists_admin_all"
+on public.wishlists for all
 to authenticated
 using ((select public.current_user_is_admin()))
 with check ((select public.current_user_is_admin()));
@@ -1244,3 +1353,88 @@ join public.product_option_values pov
   on pov.option_id = po.id
  and pov.label = seed.label
 on conflict (variant_id, option_value_id) do nothing;
+
+-- Admin-only fulfillment transitions. Both RPCs check current_user_is_admin()
+-- inside the function so the SDK call can be made under the user's session
+-- token without bypassing RLS.
+create or replace function public.mark_order_shipped(
+  p_order_id uuid,
+  p_tracking_number text default null
+)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only project admins can mark orders as shipped.';
+  end if;
+
+  update public.orders
+  set fulfillment_status = 'shipped',
+      tracking_number = coalesce(p_tracking_number, tracking_number),
+      shipped_at = coalesce(shipped_at, now()),
+      updated_at = now()
+  where id = p_order_id
+    and payment_status = 'paid'
+    and fulfillment_status in ('processing', 'unfulfilled')
+  returning * into v_order;
+
+  if v_order.id is null then
+    raise exception 'Order not found or not eligible to ship.';
+  end if;
+
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values (
+    v_order.id,
+    v_order.user_id,
+    'fulfillment_shipped',
+    case
+      when p_tracking_number is not null then 'Shipped, tracking ' || p_tracking_number
+      else 'Order shipped'
+    end
+  );
+
+  return v_order;
+end;
+$$;
+
+create or replace function public.mark_order_delivered(p_order_id uuid)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only project admins can mark orders as delivered.';
+  end if;
+
+  update public.orders
+  set fulfillment_status = 'delivered',
+      delivered_at = coalesce(delivered_at, now()),
+      updated_at = now()
+  where id = p_order_id
+    and fulfillment_status = 'shipped'
+  returning * into v_order;
+
+  if v_order.id is null then
+    raise exception 'Order not found or not yet shipped.';
+  end if;
+
+  insert into public.order_status_events (order_id, user_id, event_type, message)
+  values (
+    v_order.id,
+    v_order.user_id,
+    'fulfillment_delivered',
+    'Order delivered'
+  );
+
+  return v_order;
+end;
+$$;

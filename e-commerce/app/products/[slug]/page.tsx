@@ -6,7 +6,9 @@ import { ProductCard } from '@/components/product-card';
 import { ProductConfigurator } from '@/components/product-configurator';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
-import { getProductBySlug, getProducts } from '@/lib/store';
+import { WishlistButton } from '@/components/wishlist-button';
+import { getCurrentAuthState } from '@/lib/auth-state';
+import { getProductBySlug, getProducts, getWishlistProductIds } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +18,29 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const [product, authState] = await Promise.all([
+    getProductBySlug(slug),
+    getCurrentAuthState(),
+  ]);
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts = (await getProducts({ category: product.category?.slug ?? undefined }))
+  const viewerId = authState.viewer.isAuthenticated ? authState.viewer.id : null;
+  const wishlistPromise = viewerId && authState.accessToken
+    ? getWishlistProductIds({ accessToken: authState.accessToken, userId: viewerId }).catch(
+        () => new Set<string>(),
+      )
+    : Promise.resolve(new Set<string>());
+
+  const [wishlistIds, allRelated] = await Promise.all([
+    wishlistPromise,
+    getProducts({ category: product.category?.slug ?? undefined }),
+  ]);
+  const inWishlist = wishlistIds.has(product.id);
+
+  const relatedProducts = allRelated
     .filter((item) => item.id !== product.id)
     .slice(0, 3);
 
@@ -56,9 +74,14 @@ export default async function ProductDetailPage({
 
           <div className="space-y-8">
             <div className="space-y-4">
-              <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
-                {product.category?.name}
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
+                  {product.category?.name}
+                </p>
+                {viewerId ? (
+                  <WishlistButton productId={product.id} initialInWishlist={inWishlist} />
+                ) : null}
+              </div>
               <h1 className="font-display text-6xl leading-none">{product.name}</h1>
               <p className="max-w-xl text-lg text-muted-foreground">{product.description}</p>
             </div>
@@ -94,7 +117,12 @@ export default async function ProductDetailPage({
           {relatedProducts.length ? (
             <div className="grid gap-5 md:grid-cols-3">
               {relatedProducts.map((item) => (
-                <ProductCard key={item.id} product={item} />
+                <ProductCard
+                  key={item.id}
+                  product={item}
+                  showWishlist={!!viewerId}
+                  inWishlist={wishlistIds.has(item.id)}
+                />
               ))}
             </div>
           ) : (

@@ -36,6 +36,7 @@ export interface Product {
   featured: boolean;
   created_at: string;
   updated_at: string;
+  stripe_price_id?: string | null;
   category?: Pick<Category, 'id' | 'name' | 'slug' | 'accent_color'> | null;
   options?: ProductOption[];
   variants?: ProductVariant[];
@@ -71,6 +72,7 @@ export interface ProductVariant {
   is_default: boolean;
   is_active: boolean;
   option_value_ids: string[];
+  stripe_price_id?: string | null;
 }
 
 export interface CartItem {
@@ -137,6 +139,33 @@ export interface OrderItem {
   line_total_cents: number;
 }
 
+export type OrderStatusEventType =
+  | 'order_placed'
+  | 'payment_succeeded'
+  | 'payment_failed'
+  | 'fulfillment_processing'
+  | 'fulfillment_shipped'
+  | 'fulfillment_delivered'
+  | 'order_cancelled'
+  | 'order_refunded';
+
+export interface OrderStatusEvent {
+  id: string;
+  order_id: string;
+  user_id: string;
+  event_type: OrderStatusEventType;
+  message: string | null;
+  created_at: string;
+}
+
+export interface WishlistItem {
+  id: string;
+  user_id: string;
+  product_id: string;
+  created_at: string;
+  product?: Product;
+}
+
 export interface Order {
   id: string;
   order_number: string;
@@ -162,5 +191,12 @@ export interface Order {
   placed_at: string;
   created_at: string;
   updated_at: string;
+  tracking_number?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  stripe_checkout_session_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  discount_code?: string | null;
+  discount_cents?: number;
   items?: OrderItem[];
 }

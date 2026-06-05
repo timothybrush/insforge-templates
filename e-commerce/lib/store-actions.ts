@@ -8,7 +8,11 @@ import {
 import {
   addItemToCart,
   createAddress,
+  createCheckoutSessionForOrder,
   deleteSavedAddress,
+  getOrderPaymentState,
+  markOrderDelivered,
+  markOrderShipped,
   placeOrderForUser,
   removeCartItem,
   setDefaultSavedAddress,
@@ -70,11 +74,22 @@ export async function placeOrderAction(payload: {
     note: payload.note,
   });
 
+  const origin = process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3000'
+    : process.env.NEXT_PUBLIC_APP_URL!;
+
+  const checkoutUrl = await createCheckoutSessionForOrder({
+    accessToken,
+    userId: viewer.id,
+    userEmail: viewer.email,
+    orderId,
+    successOrigin: origin,
+  });
+
   revalidatePath('/cart');
-  revalidatePath('/checkout');
   revalidatePath('/account/orders');
 
-  return { orderId };
+  return { orderId, checkoutUrl };
 }
 
 export async function createSavedAddressAction(input: AddressInput) {
@@ -118,4 +133,39 @@ export async function setDefaultAddressAction(
 
   revalidatePath('/account/profile');
   revalidatePath('/checkout');
+}
+
+export async function pollOrderPaymentAction(payload: { orderId: string }) {
+  const { viewer, accessToken } = await requireSession();
+  const result = await getOrderPaymentState({
+    accessToken,
+    userId: viewer.id,
+    orderId: payload.orderId,
+  });
+  if (result.paid) {
+    revalidatePath('/account/orders');
+    revalidatePath(`/account/orders/${payload.orderId}`);
+  }
+  return result;
+}
+
+export async function markOrderShippedAction(payload: {
+  orderId: string;
+  trackingNumber?: string;
+}) {
+  const { accessToken } = await requireSession();
+  await markOrderShipped({
+    accessToken,
+    orderId: payload.orderId,
+    trackingNumber: payload.trackingNumber?.trim() || null,
+  });
+  revalidatePath('/account/orders');
+  revalidatePath(`/account/orders/${payload.orderId}`);
+}
+
+export async function markOrderDeliveredAction(payload: { orderId: string }) {
+  const { accessToken } = await requireSession();
+  await markOrderDelivered({ accessToken, orderId: payload.orderId });
+  revalidatePath('/account/orders');
+  revalidatePath(`/account/orders/${payload.orderId}`);
 }

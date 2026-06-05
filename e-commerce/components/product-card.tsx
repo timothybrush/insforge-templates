@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { WishlistButton } from '@/components/wishlist-button';
 import type { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -7,10 +8,14 @@ export function ProductCard({
   product,
   imageLoading = 'lazy',
   imageFetchPriority = 'auto',
+  inWishlist = false,
+  showWishlist = false,
 }: {
   product: Product;
   imageLoading?: 'lazy' | 'eager';
   imageFetchPriority?: 'auto' | 'high' | 'low';
+  inWishlist?: boolean;
+  showWishlist?: boolean;
 }) {
   return (
     <Link href={`/products/${product.slug}`} className="group glass-panel overflow-hidden">
@@ -25,6 +30,15 @@ export function ProductCard({
             loading={imageLoading}
             fetchPriority={imageFetchPriority}
           />
+        ) : null}
+        {showWishlist ? (
+          <div className="absolute right-3 top-3">
+            <WishlistButton
+              productId={product.id}
+              initialInWishlist={inWishlist}
+              size="sm"
+            />
+          </div>
         ) : null}
       </div>
 
