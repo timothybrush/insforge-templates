@@ -152,7 +152,10 @@ export async function POST(req: Request) {
         if (docsRes.error) {
           // A failed lookup must not masquerade as "no documents" — that
           // would tell a user with perfectly good PDFs to go upload again.
-          throw new Error(docsRes.error.message ?? 'Failed to load documents');
+          // Log the real error server-side; the stream error payload goes
+          // to the client, so keep it generic.
+          console.error('[chat] documents lookup failed:', docsRes.error.message);
+          throw new Error('Failed to load documents');
         }
         const readyDocs = (docsRes.data ?? []) as Array<{
           file_name: string;
