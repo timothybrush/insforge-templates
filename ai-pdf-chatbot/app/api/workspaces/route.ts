@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createInsforgeServerClient } from '@/lib/insforge';
 import { getCurrentAuthState } from '@/lib/auth-state';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,5 +49,17 @@ export async function POST(req: Request) {
     .single();
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 500 });
+
+  const posthog = getPostHogClient();
+  const ws = data as { id: string };
+  posthog.capture({
+    distinctId: auth.viewer.id,
+    event: 'workspace_created',
+    properties: { workspace_id: ws.id, workspace_name: name },
+  });
+  // Analytics flush failure must not surface as a 500 for the user;
+  // the write above already succeeded. Swallow the error.
+  await posthog.shutdown().catch(() => undefined);
+
   return NextResponse.json({ workspace: data });
 }
