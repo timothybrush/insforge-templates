@@ -265,8 +265,8 @@ export function ChatShell({ children }: { children: React.ReactNode }) {
           <span className="truncate text-sm font-medium">AI PDF Chatbot</span>
         </header>
 
-        <main className="flex min-w-0 flex-1">
-          <section className="flex min-w-0 flex-1 flex-col">{children}</section>
+        <main className="flex min-h-0 min-w-0 flex-1">
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</section>
           <CitationRail citations={railCitations} />
         </main>
       </div>
