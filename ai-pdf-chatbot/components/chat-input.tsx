@@ -23,7 +23,7 @@ export function ChatInput({
   }
 
   return (
-    <form onSubmit={handle} className="flex items-end gap-2 border-t border-border bg-card/40 p-4">
+    <form onSubmit={handle} className="flex shrink-0 items-end gap-2 border-t border-border bg-card/40 p-4">
       <Textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
